@@ -57,6 +57,7 @@ import {
   serializeEndnotesToZip,
 } from './rezip/packaging';
 import { createEmptyDocx } from './rezip/createEmpty';
+import { assertNoStructuralLoss } from './structureGate';
 
 // Public re-exports (preserve historical import surface).
 export { findMaxRId } from './rezip/parts';
@@ -83,6 +84,13 @@ export interface RepackOptions {
   updateModifiedDate?: boolean;
   /** Custom modifier name for lastModifiedBy */
   modifiedBy?: string;
+  /**
+   * Skip the structure-preservation gate. By default a repack that would
+   * silently drop unmodeled-passthrough content (text boxes / VML / fallback /
+   * image blips) from document.xml throws instead of producing a corrupt file.
+   * Set true only when an intentional structural reduction is expected.
+   */
+  skipStructureGate?: boolean;
 }
 
 /**
@@ -138,6 +146,19 @@ export async function repackDocx(doc: Document, options: RepackOptions = {}): Pr
 
   // Serialize and update document.xml (after image/hyperlink rIds have been rewritten)
   const documentXml = serializeDocument(exportDocument);
+
+  // Structure-preservation gate: a repack must never silently drop the text
+  // boxes / VML / fallback content the editor passes through but does not model.
+  // eigenpal v1.3.3 dropped all of these from a real government form (-58% of
+  // document.xml) unnoticed; this turns that loss class into a hard failure
+  // before any bytes are written. See structureGate.ts.
+  if (!options.skipStructureGate) {
+    const originalDocXml = await originalZip.file('word/document.xml')?.async('text');
+    if (originalDocXml) {
+      assertNoStructuralLoss(originalDocXml, documentXml);
+    }
+  }
+
   newZip.file('word/document.xml', documentXml, {
     compression: 'DEFLATE',
     compressionOptions: { level: compressionLevel },
