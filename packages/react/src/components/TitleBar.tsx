@@ -13,10 +13,72 @@ import type { ReactNode } from 'react';
 import { MenuDropdown } from './ui/MenuDropdown';
 import type { MenuEntry } from './ui/MenuDropdown';
 import { TableGridInline } from './ui/TableGridInline';
+import { MaterialSymbol } from './ui/MaterialSymbol';
 import { useEditorToolbar } from './EditorToolbarContext';
 import type { FormattingAction } from './Toolbar';
 import { useTranslation } from '../i18n';
 import { openReportIssue } from './reportIssue';
+
+// ============================================================================
+// BreakSubmenu — vertical list of break choices shown inside the Insert menu's
+// "Break" submenu panel. Styled to match the menu items in MenuDropdown.
+// ============================================================================
+
+interface BreakSubmenuItem {
+  icon: string;
+  label: string;
+  onClick?: () => void;
+}
+
+function BreakSubmenu({ items, closeMenu }: { items: BreakSubmenuItem[]; closeMenu: () => void }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', minWidth: 220 }}>
+      {items.map((item) => {
+        const disabled = !item.onClick;
+        return (
+          <button
+            key={item.label}
+            type="button"
+            disabled={disabled}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '6px 12px',
+              border: 'none',
+              background: 'transparent',
+              cursor: disabled ? 'default' : 'pointer',
+              fontSize: 13,
+              color: 'var(--doc-text)',
+              width: '100%',
+              textAlign: 'left',
+              whiteSpace: 'nowrap',
+              opacity: disabled ? 0.4 : 1,
+            }}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => {
+              if (disabled) return;
+              item.onClick?.();
+              closeMenu();
+            }}
+            onMouseOver={(e) => {
+              if (!disabled) {
+                (e.currentTarget as HTMLButtonElement).style.backgroundColor =
+                  'var(--doc-bg-hover)';
+              }
+            }}
+            onMouseOut={(e) => {
+              (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'transparent';
+            }}
+          >
+            <MaterialSymbol name={item.icon} size={18} />
+            <span>{item.label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 // ============================================================================
 // Default Doc Icon (shown when no Logo is provided)
@@ -71,7 +133,7 @@ export function DocumentName({ value, onChange, placeholder, editable = true }: 
 
   if (!editable) {
     return (
-      <span className="text-base font-normal text-slate-800 px-2 py-0 min-w-[100px] max-w-[300px] truncate leading-tight">
+      <span className="text-base font-normal text-foreground px-2 py-0 min-w-[100px] max-w-[300px] truncate leading-tight">
         {displayName || resolvedPlaceholder}
       </span>
     );
@@ -85,7 +147,7 @@ export function DocumentName({ value, onChange, placeholder, editable = true }: 
         onChange?.(raw.endsWith('.docx') ? raw : raw + '.docx');
       }}
       placeholder={resolvedPlaceholder}
-      className="text-base font-normal text-slate-800 bg-transparent border-0 outline-none px-2 py-0 rounded hover:bg-slate-50 focus:bg-white focus:ring-1 focus:ring-slate-300 min-w-[100px] max-w-[300px] truncate leading-tight"
+      className="text-base font-normal text-foreground bg-transparent border-0 outline-none px-2 py-0 rounded hover:bg-muted focus:bg-doc-bg-input focus:ring-1 focus:ring-ring min-w-[100px] max-w-[300px] truncate leading-tight"
       aria-label={t('titleBar.documentNameAriaLabel')}
     />
   );
@@ -120,7 +182,10 @@ export function MenuBar() {
     onInsertImage,
     onInsertTable,
     showTableInsert = true,
+    showHelpMenu = true,
     onInsertPageBreak,
+    onInsertSectionBreakNextPage,
+    onInsertSectionBreakContinuous,
     onInsertTOC,
     onWatermark,
     onRefocusEditor,
@@ -249,10 +314,30 @@ export function MenuBar() {
             : []),
           {
             icon: 'page_break',
-            label: t('toolbar.pageBreak'),
-            onClick: onInsertPageBreak,
-            disabled: !onInsertPageBreak,
-          },
+            label: t('toolbar.break'),
+            submenuContent: (closeMenu: () => void) => (
+              <BreakSubmenu
+                closeMenu={closeMenu}
+                items={[
+                  {
+                    icon: 'page_break',
+                    label: t('toolbar.pageBreak'),
+                    onClick: onInsertPageBreak,
+                  },
+                  {
+                    icon: 'horizontal_rule',
+                    label: t('toolbar.sectionBreakNextPage'),
+                    onClick: onInsertSectionBreakNextPage,
+                  },
+                  {
+                    icon: 'border_horizontal',
+                    label: t('toolbar.sectionBreakContinuous'),
+                    onClick: onInsertSectionBreakContinuous,
+                  },
+                ]}
+              />
+            ),
+          } as MenuEntry,
           {
             icon: 'format_list_numbered',
             label: t('toolbar.tableOfContents'),
@@ -272,16 +357,18 @@ export function MenuBar() {
       />
 
       {/* Help Menu */}
-      <MenuDropdown
-        label={t('toolbar.help')}
-        disabled={disabled}
-        items={[
-          {
-            label: t('toolbar.reportIssue'),
-            onClick: () => openReportIssue(),
-          } as MenuEntry,
-        ]}
-      />
+      {showHelpMenu && (
+        <MenuDropdown
+          label={t('toolbar.help')}
+          disabled={disabled}
+          items={[
+            {
+              label: t('toolbar.reportIssue'),
+              onClick: () => openReportIssue(),
+            } as MenuEntry,
+          ]}
+        />
+      )}
     </div>
   );
 }
@@ -340,7 +427,7 @@ export function TitleBar({ children }: TitleBarProps) {
 
   return (
     <div
-      className="flex items-stretch bg-white pt-2 pb-1"
+      className="flex items-stretch bg-doc-surface pt-2 pb-1"
       onMouseDown={handleMouseDown}
       data-testid="title-bar"
     >

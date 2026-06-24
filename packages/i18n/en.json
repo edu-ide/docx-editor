@@ -37,7 +37,10 @@
     "rightToLeft": "Right-to-left text",
     "image": "Image",
     "table": "Table",
+    "break": "Break",
     "pageBreak": "Page break",
+    "sectionBreakNextPage": "Section break (next page)",
+    "sectionBreakContinuous": "Section break (continuous)",
     "tableOfContents": "Table of contents",
     "symbol": "Symbol",
     "watermark": "Watermark",
@@ -122,7 +125,8 @@
     "sansSerif": "Sans Serif",
     "serif": "Serif",
     "monospace": "Monospace",
-    "other": "Other"
+    "other": "Other",
+    "documentFonts": "Document fonts"
   },
   "fontSize": {
     "decrease": "Decrease font size",
@@ -664,6 +668,7 @@
     "deleteRow": "Delete row",
     "deleteColumn": "Delete column",
     "deleteTable": "Delete table",
+    "selectTable": "Select entire table",
     "mergeCells": "Merge cells",
     "splitCell": "Split cell",
     "editingTools": "Table editing tools",

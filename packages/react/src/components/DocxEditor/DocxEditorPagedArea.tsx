@@ -112,6 +112,9 @@ export function DocxEditorPagedArea({
   setAddCommentYPosition,
   setIsAddingComment,
   setFloatingCommentBtn,
+  isSuggesting = false,
+  author = 'User',
+  onHfTransaction,
 }: {
   pagedEditorRef: React.RefObject<PagedEditorRef | null>;
   hfEditorRef: React.RefObject<InlineHeaderFooterEditorRef | null>;
@@ -131,6 +134,7 @@ export function DocxEditorPagedArea({
   onHeaderFooterDoubleClick: (position: 'header' | 'footer', pageNumber?: number) => void;
   onHeaderFooterSave: (content: BlockContent[]) => void;
   onRemoveHeaderFooter: () => void;
+  onHfTransaction?: (rId: string, view: EditorView, docChanged: boolean) => void;
   onBodyClick: () => void;
   getHfTargetElement: (pos: 'header' | 'footer') => HTMLElement | null;
   zoom: number;
@@ -183,6 +187,8 @@ export function DocxEditorPagedArea({
   setAddCommentYPosition: React.Dispatch<React.SetStateAction<number | null>>;
   setIsAddingComment: React.Dispatch<React.SetStateAction<boolean>>;
   setFloatingCommentBtn: React.Dispatch<React.SetStateAction<{ top: number; left: number } | null>>;
+  isSuggesting?: boolean;
+  author?: string;
 }) {
   // Resolve the active HF block for the inline editor — first-page variant
   // wins when `titlePg` is set and the user double-clicked page 1.
@@ -325,7 +331,9 @@ export function DocxEditorPagedArea({
         onHeaderFooterDoubleClick={onHeaderFooterDoubleClick}
         hfEditMode={hfEditPosition}
         onBodyClick={onBodyClick}
-        onHfTransaction={(_rId, view, _docChanged) => {
+        isSuggesting={isSuggesting}
+        author={author}
+        onHfTransaction={(rId, view, docChanged) => {
           // Phase 5: the persistent HF PM is the sole editor. On every
           // transaction (typing, click → setSelection, undo/redo) we need
           // the caret to follow — deferred to rAF so the painter's repaint
@@ -356,6 +364,7 @@ export function DocxEditorPagedArea({
             }
           });
           onSelectionChange(extractSelectionState(view.state));
+          onHfTransaction?.(rId, view, docChanged);
         }}
         // Click routing through `onHfPagesMouseDown` was retired; usePagesPointer
         // now routes every HF gesture (click, drag, dblclick, image, hyperlink,
@@ -447,26 +456,26 @@ export function DocxEditorPagedArea({
               width: 28,
               height: 28,
               borderRadius: 6,
-              border: '1px solid rgba(26, 115, 232, 0.3)',
-              backgroundColor: '#fff',
-              color: '#1a73e8',
+              border: '1px solid var(--doc-focus-ring)',
+              backgroundColor: 'var(--doc-surface)',
+              color: 'var(--doc-primary)',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              boxShadow: '0 1px 3px rgba(60,64,67,0.2)',
+              boxShadow: '0 1px 3px var(--doc-shadow)',
               transition: 'background-color 0.15s ease, box-shadow 0.15s ease',
             }}
             onMouseOver={(e) => {
               (e.currentTarget as HTMLButtonElement).style.backgroundColor =
-                'rgba(26, 115, 232, 0.08)';
+                'var(--doc-primary-light)';
               (e.currentTarget as HTMLButtonElement).style.boxShadow =
-                '0 1px 4px rgba(26, 115, 232, 0.3)';
+                '0 1px 4px var(--doc-focus-ring)';
             }}
             onMouseOut={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#fff';
+              (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--doc-surface)';
               (e.currentTarget as HTMLButtonElement).style.boxShadow =
-                '0 1px 3px rgba(60,64,67,0.2)';
+                '0 1px 3px var(--doc-shadow)';
             }}
           >
             <MaterialSymbol name="add_comment" size={16} />
@@ -510,7 +519,6 @@ export function DocxEditorPagedArea({
                       animation: 'hf-caret-blink 1.06s steps(1) infinite',
                     }}
                   />
-                  <style>{`@keyframes hf-caret-blink { 0%,49%{opacity:1} 50%,100%{opacity:0} }`}</style>
                 </>
               )}
               {hfSelectionRects.map((r, i) => {

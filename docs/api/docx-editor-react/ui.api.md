@@ -20,15 +20,21 @@ import { FindMatch } from '@eigenpal/docx-editor-core/utils/findReplace';
 import { FindOptions } from '@eigenpal/docx-editor-core/utils/findReplace';
 import { FindResult } from '@eigenpal/docx-editor-core/utils/findReplace';
 import { FontOption } from '@eigenpal/docx-editor-core/utils/fontOptions';
+import { formatPageRange as formatPrintPageRange } from '@eigenpal/docx-editor-core';
 import { getDefaultHighlightOptions } from '@eigenpal/docx-editor-core/utils/findReplace';
+import { getDefaultPrintOptions } from '@eigenpal/docx-editor-core';
 import { getMatchCountText } from '@eigenpal/docx-editor-core/utils/findReplace';
 import { HighlightOptions } from '@eigenpal/docx-editor-core/utils/findReplace';
 import { isEmptySearch } from '@eigenpal/docx-editor-core/utils/findReplace';
+import { isPrintSupported } from '@eigenpal/docx-editor-core';
 import { ListState } from '@eigenpal/docx-editor-core/utils/listState';
+import { openPrintWindow } from '@eigenpal/docx-editor-core';
 import { ParagraphAlignment } from '@eigenpal/docx-editor-core/types/document';
 import { ParsedClipboardContent } from '@eigenpal/docx-editor-core/utils';
+import { parsePageRange } from '@eigenpal/docx-editor-core';
+import { PrintOptions } from '@eigenpal/docx-editor-core';
+import * as React$1 from 'react';
 import React__default from 'react';
-import * as react_jsx_runtime from 'react/jsx-runtime';
 import { ReactNode } from 'react';
 import { replaceAllInContent } from '@eigenpal/docx-editor-core/utils/findReplace';
 import { replaceFirstInContent } from '@eigenpal/docx-editor-core/utils/findReplace';
@@ -42,6 +48,7 @@ import { TableCell } from '@eigenpal/docx-editor-core/types/document';
 import { TabStop } from '@eigenpal/docx-editor-core/types/document';
 import { Theme } from '@eigenpal/docx-editor-core/types/document';
 import { TranslationKey } from '@eigenpal/docx-editor-i18n';
+import { triggerPrint } from '@eigenpal/docx-editor-core';
 
 // @public
 export function addColumn(table: Table, atIndex: number, position?: 'before' | 'after'): Table;
@@ -50,7 +57,7 @@ export function addColumn(table: Table, atIndex: number, position?: 'before' | '
 export function addRow(table: Table, atIndex: number, position?: 'before' | 'after'): Table;
 
 // @public
-export function AlignmentButtons(input: AlignmentButtonsProps): react_jsx_runtime.JSX.Element;
+export function AlignmentButtons(input: AlignmentButtonsProps): React__default.JSX.Element;
 
 // @public
 export interface AlignmentButtonsProps {
@@ -73,7 +80,7 @@ export function calculateFitDimensions(originalWidth: number, originalHeight: nu
 export function clampTableConfig(config: TableConfig, maxRows?: number, maxColumns?: number): TableConfig;
 
 // @public (undocumented)
-export function ColorPicker(input: ColorPickerProps): react_jsx_runtime.JSX.Element;
+export function ColorPicker(input: ColorPickerProps): React$1.JSX.Element;
 
 // @public (undocumented)
 export type ColorPickerMode = 'text' | 'highlight' | 'border';
@@ -265,14 +272,15 @@ export { FindResult }
 export { FontOption }
 
 // @public (undocumented)
-export function FontPicker(input: FontPickerProps): react_jsx_runtime.JSX.Element;
+export function FontPicker(input: FontPickerProps): React$1.JSX.Element;
 
-// @public (undocumented)
+// @public
 export interface FontPickerProps {
     // (undocumented)
     className?: string;
     // (undocumented)
     disabled?: boolean;
+    documentFonts?: readonly FontOption[];
     // (undocumented)
     fonts?: FontOption[];
     // (undocumented)
@@ -288,7 +296,7 @@ export interface FontPickerProps {
 }
 
 // @public (undocumented)
-export function FontSizePicker(input: FontSizePickerProps): react_jsx_runtime.JSX.Element;
+export function FontSizePicker(input: FontSizePickerProps): React$1.JSX.Element;
 
 // @public
 export interface FontSizePickerProps {
@@ -315,11 +323,7 @@ export interface FontSizePickerProps {
 // @public
 export function formatFileSize(bytes: number): string;
 
-// @public
-export function formatPrintPageRange(range: {
-    start: number;
-    end: number;
-} | null, totalPages: number): string;
+export { formatPrintPageRange }
 
 // @public
 export function formatShortcutKeys(keys: string): string;
@@ -371,8 +375,7 @@ export { getDefaultHighlightOptions }
 // @public
 export function getDefaultPasteOption(): PasteOption;
 
-// @public
-export function getDefaultPrintOptions(): PrintOptions;
+export { getDefaultPrintOptions }
 
 // @public
 export function getDefaultShortcuts(): DialogKeyboardShortcut[];
@@ -588,8 +591,7 @@ export { isEmptySearch }
 // @public
 export function isPasteSpecialShortcut(event: KeyboardEvent): boolean;
 
-// @public
-export function isPrintSupported(): boolean;
+export { isPrintSupported }
 
 // @public
 export function isTextActionAvailable(action: TextContextAction, hasSelection: boolean, isEditable: boolean): boolean;
@@ -612,7 +614,7 @@ export interface KeyboardShortcutsDialogProps {
     showSearch?: boolean;
 }
 
-// @public (undocumented)
+// @public
 export interface LineSpacingOption {
     // (undocumented)
     label: string;
@@ -625,7 +627,7 @@ export interface LineSpacingOption {
 }
 
 // @public (undocumented)
-export function LineSpacingPicker(input: LineSpacingPickerProps): react_jsx_runtime.JSX.Element;
+export function LineSpacingPicker(input: LineSpacingPickerProps): React$1.JSX.Element;
 
 // @public (undocumented)
 export interface LineSpacingPickerProps {
@@ -644,7 +646,7 @@ export interface LineSpacingPickerProps {
 }
 
 // @public
-export function ListButtons(input: ListButtonsProps): react_jsx_runtime.JSX.Element;
+export function ListButtons(input: ListButtonsProps): React__default.JSX.Element;
 
 // @public
 export interface ListButtonsProps {
@@ -699,7 +701,7 @@ export type LoadingSize = 'small' | 'medium' | 'large';
 // @public
 export type LoadingVariant = 'spinner' | 'dots' | 'bar' | 'pulse' | 'progress';
 
-// @public (undocumented)
+// @public
 export interface LogoProps {
     // (undocumented)
     children: ReactNode;
@@ -708,17 +710,12 @@ export interface LogoProps {
 // @public
 export function mergeCells(table: Table, selection: TableSelection): Table;
 
-// @public
-export function openPrintWindow(title: string | undefined, content: string): Window | null;
+export { openPrintWindow }
 
 // @public (undocumented)
 export function parseMarginFromUnits(value: string, unit: 'inch' | 'cm'): number | null;
 
-// @public
-export function parsePageRange(input: string, maxPages: number): {
-    start: number;
-    end: number;
-} | null;
+export { parsePageRange }
 
 // @public
 export type PasteOption = 'formatted' | 'plainText';
@@ -755,19 +752,7 @@ export interface PrintButtonProps {
     style?: CSSProperties;
 }
 
-// @public
-export interface PrintOptions {
-    includeFooters?: boolean;
-    includeHeaders?: boolean;
-    includePageNumbers?: boolean;
-    margins?: 'default' | 'none' | 'minimum';
-    pageRange?: {
-        start: number;
-        end: number;
-    } | null;
-    printBackground?: boolean;
-    scale?: number;
-}
+export { PrintOptions }
 
 // @public
 export function PrintStyles(): React__default.ReactElement;
@@ -865,7 +850,7 @@ export function splitCell(table: Table, rowIndex: number, columnIndex: number): 
 // @public (undocumented)
 export function splitTableCell(table: Table, rowIndex: number, columnIndex: number, rows: number, cols: number): Table;
 
-// @public (undocumented)
+// @public
 export interface StyleOption {
     bold?: boolean;
     color?: string;
@@ -888,7 +873,7 @@ export interface StyleOption {
 }
 
 // @public (undocumented)
-export function StylePicker(input: StylePickerProps): react_jsx_runtime.JSX.Element;
+export function StylePicker(input: StylePickerProps): React$1.JSX.Element;
 
 // @public (undocumented)
 export interface StylePickerProps {
@@ -978,7 +963,7 @@ export type TableAction = 'addRowAbove' | 'addRowBelow' | 'addColumnLeft' | 'add
 };
 
 // @public (undocumented)
-export function TableBorderColorPicker(input: TableBorderColorPickerProps): react_jsx_runtime.JSX.Element;
+export function TableBorderColorPicker(input: TableBorderColorPickerProps): React$1.JSX.Element;
 
 // @public (undocumented)
 export interface TableBorderColorPickerProps {
@@ -992,7 +977,7 @@ export interface TableBorderColorPickerProps {
 }
 
 // @public (undocumented)
-export function TableBorderPicker(input: TableBorderPickerProps): react_jsx_runtime.JSX.Element;
+export function TableBorderPicker(input: TableBorderPickerProps): React$1.JSX.Element;
 
 // @public (undocumented)
 export interface TableBorderPickerProps {
@@ -1003,7 +988,7 @@ export interface TableBorderPickerProps {
 }
 
 // @public (undocumented)
-export function TableBorderWidthPicker(input: TableBorderWidthPickerProps): react_jsx_runtime.JSX.Element;
+export function TableBorderWidthPicker(input: TableBorderWidthPickerProps): React$1.JSX.Element;
 
 // @public (undocumented)
 export interface TableBorderWidthPickerProps {
@@ -1014,7 +999,7 @@ export interface TableBorderWidthPickerProps {
 }
 
 // @public (undocumented)
-export function TableCellFillPicker(input: TableCellFillPickerProps): react_jsx_runtime.JSX.Element;
+export function TableCellFillPicker(input: TableCellFillPickerProps): React$1.JSX.Element;
 
 // @public (undocumented)
 export interface TableCellFillPickerProps {
@@ -1044,9 +1029,9 @@ export interface TableContext {
 }
 
 // @public (undocumented)
-export function TableInsertButtons(input: TableInsertButtonsProps): react_jsx_runtime.JSX.Element;
+export function TableInsertButtons(input: TableInsertButtonsProps): React__default.JSX.Element;
 
-// @public (undocumented)
+// @public
 export interface TableInsertButtonsProps {
     // (undocumented)
     disabled?: boolean;
@@ -1055,9 +1040,9 @@ export interface TableInsertButtonsProps {
 }
 
 // @public (undocumented)
-export function TableMergeButton(input: TableMergeButtonProps): react_jsx_runtime.JSX.Element;
+export function TableMergeButton(input: TableMergeButtonProps): React__default.JSX.Element;
 
-// @public (undocumented)
+// @public
 export interface TableMergeButtonProps {
     // (undocumented)
     canMerge?: boolean;
@@ -1070,7 +1055,7 @@ export interface TableMergeButtonProps {
 }
 
 // @public (undocumented)
-export function TableMoreDropdown(input: TableMoreDropdownProps): react_jsx_runtime.JSX.Element;
+export function TableMoreDropdown(input: TableMoreDropdownProps): React$1.JSX.Element;
 
 // @public (undocumented)
 export interface TableMoreDropdownProps {
@@ -1135,7 +1120,7 @@ export interface TableToolbarProps {
 }
 
 // @public
-export type TextContextAction = 'cut' | 'copy' | 'paste' | 'pasteAsPlainText' | 'selectAll' | 'delete' | 'separator' | 'addRowAbove' | 'addRowBelow' | 'deleteRow' | 'addColumnLeft' | 'addColumnRight' | 'deleteColumn' | 'mergeCells' | 'splitCell' | 'addComment';
+export type TextContextAction = 'cut' | 'copy' | 'paste' | 'pasteAsPlainText' | 'selectAll' | 'delete' | 'separator' | 'addRowAbove' | 'addRowBelow' | 'deleteRow' | 'addColumnLeft' | 'addColumnRight' | 'deleteColumn' | 'mergeCells' | 'splitCell' | 'selectTable' | 'deleteTable' | 'addComment';
 
 // @public (undocumented)
 export const TextContextMenu: React__default.FC<TextContextMenuProps>;
@@ -1178,13 +1163,13 @@ export interface TitleBarRightProps {
 }
 
 // @public
-export function Toolbar(explicitProps: ToolbarProps): react_jsx_runtime.JSX.Element;
+export function Toolbar(explicitProps: ToolbarProps): React__default.JSX.Element;
 
 // @public
-export function ToolbarButton(input: ToolbarButtonProps): react_jsx_runtime.JSX.Element;
+export function ToolbarButton(input: ToolbarButtonProps): React__default.JSX.Element;
 
 // @public
-export function ToolbarGroup(input: ToolbarGroupProps$1): react_jsx_runtime.JSX.Element;
+export function ToolbarGroup(input: ToolbarGroupProps$1): React__default.JSX.Element;
 
 // @public
 export interface ToolbarItem {
@@ -1208,6 +1193,7 @@ export interface ToolbarProps {
     className?: string;
     currentFormatting?: SelectionFormatting;
     disabled?: boolean;
+    documentFonts?: readonly FontOption[];
     documentStyles?: Style[];
     editorRef?: React__default.RefObject<HTMLElement>;
     enableShortcuts?: boolean;
@@ -1223,6 +1209,8 @@ export interface ToolbarProps {
     onImageWrapType?: (wrapType: string) => void;
     onInsertImage?: () => void;
     onInsertPageBreak?: () => void;
+    onInsertSectionBreakContinuous?: () => void;
+    onInsertSectionBreakNextPage?: () => void;
     onInsertShape?: (data: {
         shapeType: string;
         width: number;
@@ -1248,6 +1236,7 @@ export interface ToolbarProps {
     showAlignmentButtons?: boolean;
     showFontPicker?: boolean;
     showFontSizePicker?: boolean;
+    showHelpMenu?: boolean;
     showHighlightColorPicker?: boolean;
     showLineSpacingPicker?: boolean;
     showListButtons?: boolean;
@@ -1270,10 +1259,9 @@ export interface ToolbarProps {
 }
 
 // @public
-export function ToolbarSeparator(): react_jsx_runtime.JSX.Element;
+export function ToolbarSeparator(): React__default.JSX.Element;
 
-// @public
-export function triggerPrint(): void;
+export { triggerPrint }
 
 // @public (undocumented)
 export const UnsavedIndicator: React__default.FC<UnsavedIndicatorProps>;
@@ -1507,7 +1495,7 @@ export interface UseUnsavedChangesReturn {
 }
 
 // @public (undocumented)
-export function ZoomControl(input: ZoomControlProps): react_jsx_runtime.JSX.Element;
+export function ZoomControl(input: ZoomControlProps): React$1.JSX.Element;
 
 // @public (undocumented)
 export interface ZoomControlProps {
@@ -1520,17 +1508,7 @@ export interface ZoomControlProps {
     // (undocumented)
     levels?: ZoomLevel[];
     // (undocumented)
-    maxZoom?: number;
-    // (undocumented)
-    minZoom?: number;
-    // (undocumented)
     onChange?: (zoom: number) => void;
-    // (undocumented)
-    persistZoom?: boolean;
-    // (undocumented)
-    showButtons?: boolean;
-    // (undocumented)
-    storageKey?: string;
     // (undocumented)
     value?: number;
 }

@@ -34,12 +34,24 @@ import type {
   SelectionInfo,
   ApplyFormattingOptions,
   SetParagraphStyleOptions,
+  InsertBreakOptions,
   PageContent,
 } from './types';
 import { getContent, formatContentForLLM } from './content';
 import { getChanges, getComments } from './discovery';
+// Single source of truth for the paragraph-flash option shapes (also consumed
+// by the React/Vue adapters) — re-exported below so the agent bridge surface
+// stays self-describing without redefining them. Imported from the DOM-free
+// types module, not the /utils barrel, so this package's type-check surface
+// stays free of core's browser code.
+import type {
+  ParagraphHighlightOptions,
+  ScrollToParaIdOptions,
+} from '@eigenpal/docx-editor-core/utils/paragraphFlashTypes';
 
 // ── Types ───────────────────────────────────────────────────────────────────
+
+export type { ParagraphHighlightOptions, ScrollToParaIdOptions };
 
 /**
  * Agent-bridge contract every editor adapter (React, Vue, future) MUST satisfy.
@@ -64,7 +76,7 @@ export interface EditorRefLike {
     replaceWith: string;
     author: string;
   }): boolean;
-  scrollToParaId(paraId: string): boolean;
+  scrollToParaId(paraId: string, options?: ScrollToParaIdOptions): boolean;
   findInDocument(
     query: string,
     options?: { caseSensitive?: boolean; limit?: number }
@@ -86,6 +98,11 @@ export interface EditorRefLike {
   }): boolean;
   /** Apply a paragraph style by styleId. Returns false if paraId is unknown. */
   setParagraphStyle(options: { paraId: string; styleId: string }): boolean;
+  /** Insert a page or section break after the paragraph. Returns false if paraId is unknown. */
+  insertBreak(options: {
+    paraId: string;
+    type: 'page' | 'sectionNextPage' | 'sectionContinuous';
+  }): boolean;
   /** Read a single page's paragraphs (1-indexed). Returns null if the page does not exist. */
   getPageContent(pageNumber: number): PageContent | null;
   /** Total number of pages currently rendered. */
@@ -135,6 +152,12 @@ export interface EditorBridge {
    * Direct edit, not a tracked change.
    */
   setParagraphStyle(options: SetParagraphStyleOptions): boolean;
+  /**
+   * Insert a page or section break after a paragraph, by paraId. `page` adds a
+   * page break; `sectionNextPage` / `sectionContinuous` start a new section on
+   * a new page / the same page. Direct edit, not a tracked change.
+   */
+  insertBreak(options: InsertBreakOptions): boolean;
   /** Read a single page (1-indexed). Returns null if the page does not exist. */
   getPage(pageNumber: number): PageContent | null;
   /** Read a range of pages (1-indexed, inclusive). Out-of-range pages are skipped. */
@@ -143,8 +166,8 @@ export interface EditorBridge {
   getTotalPages(): number;
   /** 1-indexed page the user's cursor / selection is on. 0 if unknown. */
   getCurrentPage(): number;
-  /** Scroll the editor to a paragraph by paraId. */
-  scrollTo(paraId: string): boolean;
+  /** Scroll the editor to a paragraph by paraId, optionally flashing it. */
+  scrollTo(paraId: string, options?: ScrollToParaIdOptions): boolean;
   /** Subscribe to document content changes. Returns an unsubscribe function. */
   onContentChange(listener: (event: ContentChangeEvent) => void): () => void;
   /** Subscribe to selection changes (cursor moves / selection changes). Returns an unsubscribe function. */
@@ -330,6 +353,13 @@ export function createEditorBridge(editorRef: EditorRefLike, author = 'AI'): Edi
       });
     },
 
+    insertBreak(options: InsertBreakOptions): boolean {
+      return editorRef.insertBreak({
+        paraId: options.paraId,
+        type: options.type,
+      });
+    },
+
     getPage(pageNumber: number): PageContent | null {
       return editorRef.getPageContent(pageNumber);
     },
@@ -354,8 +384,8 @@ export function createEditorBridge(editorRef: EditorRefLike, author = 'AI'): Edi
       return editorRef.getCurrentPage();
     },
 
-    scrollTo(paraId: string): boolean {
-      return editorRef.scrollToParaId(paraId);
+    scrollTo(paraId: string, options?: ScrollToParaIdOptions): boolean {
+      return editorRef.scrollToParaId(paraId, options);
     },
 
     onContentChange(listener) {

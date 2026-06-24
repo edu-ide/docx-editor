@@ -19,14 +19,16 @@ export interface UseMenuActionsOptions {
   editorView: Ref<EditorView | null>;
   getCommands: () => Record<string, (...args: any[]) => any>;
   docxInputRef: Ref<HTMLInputElement | null>;
+  imageInputRef: Ref<HTMLInputElement | null>;
   showPageSetup: Ref<boolean>;
   showWatermark: Ref<boolean>;
-  showInsertImage: Ref<boolean>;
   showHyperlink: Ref<boolean>;
   showInsertSymbol: Ref<boolean>;
   showKeyboardShortcuts: Ref<boolean>;
   handleClearFormatting: () => void;
   handleInsertPageBreak: () => void;
+  handleInsertSectionBreakNextPage: () => void;
+  handleInsertSectionBreakContinuous: () => void;
   handleToggleOutline: () => void;
   handleToggleSidebar: () => void;
   downloadCurrentDocument: () => Promise<void>;
@@ -73,7 +75,9 @@ export function useMenuActions(opts: UseMenuActionsOptions) {
         opts.handleClearFormatting();
         break;
       case 'insertImage':
-        opts.showInsertImage.value = true;
+        // Mirror React: open the OS file picker and insert directly (the
+        // shared `insertImageFromFile` flow), no intermediate dialog.
+        opts.imageInputRef.value?.click();
         break;
       case 'insertLink':
         opts.showHyperlink.value = true;
@@ -83,6 +87,12 @@ export function useMenuActions(opts: UseMenuActionsOptions) {
         break;
       case 'insertPageBreak':
         opts.handleInsertPageBreak();
+        break;
+      case 'insertSectionBreakNextPage':
+        opts.handleInsertSectionBreakNextPage();
+        break;
+      case 'insertSectionBreakContinuous':
+        opts.handleInsertSectionBreakContinuous();
         break;
       case 'insertTOC':
         execSimpleCommand('generateTOC');

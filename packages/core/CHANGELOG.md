@@ -1,5 +1,169 @@
 # @eigenpal/docx-editor-core
 
+## 1.10.0
+
+### Minor Changes
+
+- 18a686d: Add `generateTableOfContents(options)` — an options-aware Table of Contents command — and a `GenerateTOCOptions` type, exported from `@eigenpal/docx-editor-core/prosemirror/commands` (and the `prosemirror` barrel).
+
+  Options: `minLevel` / `maxLevel` (heading-level range, 1-based), `title` (custom title text; `null`/`""` omits the title paragraph), and `includeHyperlinks` (toggle clickable entries). Omitting `options` reproduces the historical behavior, and the existing `generateTOC: Command` export is unchanged — so current callers (including the React toolbar's Insert → Table of Contents) are unaffected. Useful for headless/programmatic TOC generation. Closes #986.
+
+### Patch Changes
+
+- 00c015b: Fix headless agent edits corrupting the document. `cloneDocument` (run on every agent edit) used `JSON.parse(JSON.stringify())`, which silently dropped values JSON can't represent: the `headers`/`footers`/`media` `Map`s became `{}` and `originalBuffer` became `{}`. As a result, the first edit broke export — `repackDocx` threw `Can't read the data of 'the loaded zip file'` (dead `originalBuffer`) or `map.entries is not a function` (dead headers/footers) — and dropped every image. Clone with `structuredClone` instead, sharing the read-only `originalBuffer` and shallow-copying the immutable `media` map so large binary payloads aren't copied on every edit.
+- a631be1: Keep a footnote/endnote reference superscript on the same line as the word it follows. The line-breaker treated every run boundary as a wrap opportunity, so a reference mark with no space before it (e.g. `copyright.¹`) could split onto the next line. Adjacent runs with no whitespace between them now wrap as one unbreakable cluster, matching Word.
+- 7a03c16: Footnote and endnote reference marks are now superscript only when their character style (or run) actually specifies it, matching Word. Previously every anchor was force-raised, so an unstyled anchor (e.g. Pandoc output with a bare `<w:r><w:footnoteReference/></w:r>`) rendered superscript in the editor while Word showed it at the baseline. Superscript now flows solely from the resolved `FootnoteReference`/`EndnoteReference` style chain or the run's own `vertAlign`.
+- c1871b5: Harden handling of untrusted input: reject zip-bomb DOCX archives (per-entry and total decompression limits), constrain rendered image sources to safe URL schemes, validate agent/MCP edit positions before they touch the document, cap the MCP stdio input buffer, drop prototype-polluting keys in the VML style parser, and validate DrawingML color values at the parse boundary.
+- dc3d694: Grow each section's header/footer band from that section's own margins. A section with thin margins (e.g. a landscape table section with a 0.5in bottom margin) embedded in a roomier 1in-margin body previously never grew its footer band, so the footer overlapped the footnote area and the page number rode up beside the last footnote instead of sitting below it. The overflow is now decided per margin set.
+- 7a94b49: Preserve block-level bookmarks and text-box text on save. Bookmarks (`w:bookmarkStart`/`w:bookmarkEnd`) placed between block elements — in the body, table cells, headers/footers, or content controls — are no longer dropped when a document is opened and saved, so cross-references, hyperlinks and table-of-contents entries that point at them keep working. Text inside shapes/text boxes whose geometry is not exactly `textBox` (e.g. `rect` AlternateContent fallbacks) is also preserved instead of being discarded. Text boxes anchored from a run nested inside an inline content control or hyperlink (e.g. a confidentiality notice on a page-number control in a footer), or from a run inside a table cell, are preserved too, instead of being silently dropped at parse time. This preservation now holds through the interactive editor as well: opening a document and exporting it — even with no edits — keeps these elements, not only the programmatic save path.
+- 53ede3c: Anchor the hidden ProseMirror caret to the painted caret so CJK IME candidate windows appear near the visible insertion point.
+- 5e7120b: Paste from Word now keeps text and formatting instead of inserting a bitmap snapshot of the selection. When the clipboard carries rich HTML alongside an image, the editor routes it through the normal paste pipeline (both keyboard paste and the Vue right-click Paste). Fixes #981
+
+## 1.9.0
+
+### Minor Changes
+
+- 826aa32: Add an `{ all: true }` option to `setContentControlContent`, `setContentControlValue`, and `removeContentControl` to apply the change to every content control matching the filter — across headers and footers with `{ includeHeadersFooters: true }` — instead of only the first. This covers one logical value that recurs under a shared tag (e.g. a name in the body, a running header, and several table cells). The default stays first-match. An `{ all: true }` run is atomic: if any matched control is refused by a lock, type, or data-binding guard, nothing is written unless `{ force: true }`.
+- 826aa32: Add `createContentControl` to wrap a text span (including inside a table cell) in a new content control, returning a new document plus the created control with an auto-assigned unique `w:id`. `setContentControlValue` now sets dropdown/date/checkbox values on inline controls too, including inside table cells and — with `{ includeHeadersFooters: true }` — headers and footers. Date controls serialize their format to `<w:dateFormat>`.
+- 826aa32: Content-control addressing now covers inline (`w:sdt`-in-paragraph) controls, including inside table cells: `findContentControls`, `findContentControl`, `setContentControlContent`, `setContentControlValue`, and `removeContentControl` discover and edit them, and `{ includeHeadersFooters: true }` also reaches headers and footers. Results carry `kind` and `location`. The live-editor `DocxEditorRef` methods (React and Vue) gain the same inline support.
+
+  Because of this, `findContentControls` now returns inline controls in the body that earlier versions skipped — code relying on the old block-only results (counts, first match) should re-check.
+
+### Patch Changes
+
+- 4b47daf: Chinese, Korean, and Japanese documents now render and measure with the matching Noto webfont instead of a system fallback. CJK theme typefaces — by their native or romanized name (e.g. SimSun, Malgun Gothic, PMingLiU, MS Mincho) — map to the corresponding Noto Sans/Serif SC/TC/KR/JP family, and the font loader fetches that family rather than the unresolvable raw name.
+- 9144b69: Harden clipboard HTML paste against script injection and slow-input denial of service. Pasted HTML is now sanitized (via DOMPurify) and parsed into an inert document instead of being assigned to `innerHTML`, so embedded scripts, event handlers, and `javascript:` URLs cannot run. Word comment stripping and Office/Word namespace-tag removal now use linear scans that cannot backtrack on hostile input or leave a stray comment opener behind.
+- 12c1f87: Fix export corruption for comments overlapping tracked changes.
+- 7839ee9: Fix CJK text overflowing the right margin when a document's theme leaves the East Asian font slot empty. The East Asian theme font is now resolved from the document's `w:themeFontLang` (e.g. Japanese → MS Mincho), so line breaking and rendering use the correct font and wrap within the page.
+- 9454c9a: Preserve explicit `nil`/`none` borders on export. A cell that hides the table's default grid by setting `<w:tcBorders>` sides to `nil` no longer loses that override on save, so hidden gridlines stay hidden after a round-trip instead of re-inheriting the table's grid. The same applies to paragraph (`w:pBdr`) and page (`w:pgBorders`) borders, which had the identical bug. Fixes #947.
+- f61435b: Harden `openPrintWindow` to build the print window via DOM APIs instead of `document.write`, so a crafted document title cannot break out into executable markup. The framework-agnostic print helpers are now exported from `@eigenpal/docx-editor-core` as the single source of truth, and the React package re-exports them unchanged.
+- 28876a2: Make regular expressions over file- and library-supplied strings run in linear time and escape quoted font names completely. The variable-detection, plural-message, and core-properties date regexes no longer backtrack polynomially on hostile input, and font family names are now backslash-escaped before being wrapped in a quoted CSS string so a crafted DOCX font name cannot break out of it.
+
+## 1.8.3
+
+### Patch Changes
+
+- 88a7650: Support RTL tables with `w:bidiVisual` alignment.
+- 5ce3faa: Escape embedded font-family names before interpolating into the injected `@font-face` stylesheet, and build the print window via DOM APIs instead of `document.write` string concatenation. Prevents CSS injection and print-time XSS from crafted DOCX font names.
+- 5eb0a43: Allowlist URL schemes on hyperlink and image-hyperlink targets parsed from DOCX relationships and pasted HTML; `javascript:`, `data:`, and other non-web schemes are now dropped.
+- 673e917: Render RTL tables (`w:bidiVisual`) with their columns in visual right-to-left order, matching Word. The bidi flag was already parsed and round-tripped, but the on-page painter still drew columns left-to-right, so in a right-to-left table a label cell appeared on the wrong side of the field it labels.
+
+  Fixes #734
+
+- 74e36ef: Build shape SVG via DOM APIs instead of innerHTML, preventing XSS from crafted DOCX shape attributes.
+- 447d5b0: Fix Japanese/CJK IME input garbling text in suggesting mode. Composed text was re-inserted via `handleTextInput`, duplicating surrounding content and marking it as a tracked change. Suggesting mode now stays out of the way during composition and marks the committed text once it settles.
+
+## 1.8.2
+
+### Patch Changes
+
+- 4f183b3: Fix duplicate comment range markers when commenting across a tracked change. A comment whose range was interrupted by an inserted or deleted run now serializes as a single commentRangeStart/End pair instead of multiple, which Word rejected as unreadable content.
+
+  Fixes #914
+
+- 0c233db: Keep drag-selecting text inside a table cell from selecting the whole cell.
+- 7811a73: Fix caret size and table insert button position when the editor is zoomed. Both are painted inside the zoomed page container, so their geometry is now normalized by the zoom factor instead of being scaled twice.
+
+  Fixes #928
+
+## 1.8.1
+
+### Patch Changes
+
+- 6047f84: Emit `word/numbering.xml` when exporting documents whose lists have no original numbering part
+
+  `createDocx()` (and any export of a document built from scratch — e.g. the editor with no source `.docx`) wrote `<w:numPr w:numId=…>` onto list paragraphs but never generated the backing `word/numbering.xml`, nor its content-type override / document relationship. Word couldn't resolve the dangling `numId`s, so it silently dropped every bullet and number marker — ordered/bulleted lists opened with no markers.
+
+  `fromProseDoc` now reconstructs the numbering definitions from the editor's list state (the list attrs were previously discarded on the no-base path), and the repacker serializes them to `word/numbering.xml` — registering the content-type override and relationship — when the package doesn't already ship one. Documents that already contain a `numbering.xml` are passed through unchanged.
+
+## 1.8.0
+
+### Minor Changes
+
+- a1f4537: Render fonts embedded in a DOCX. Fonts a document carries in `word/fonts/*` are now de-obfuscated and loaded automatically, so it displays in its authored faces instead of a fallback. Fonts the document uses that the browser can render (embedded or installed on the system) also appear in the toolbar font picker under a "Document fonts" group.
+- 114e83e: Newly inserted tables now adopt the document's default table style. When a document declares a default table style (settings `w:defaultTableStyle`, otherwise the table style marked default), inserting a table from the toolbar or via the agent API gives it that style's borders, shading, cell margins, and header/banding instead of a plain black grid. Documents without a default table style keep the previous thin black border.
+
+### Patch Changes
+
+- 27740e1: Respect a document's own paragraph defaults instead of forcing the default-template spacing. A DOCX that ships `w:docDefaults` but no `Normal` style (common in generated files) no longer has 8pt after-spacing and 1.08 line spacing injected, so table rows and other unstyled paragraphs render at the compact height the document specifies. New and programmatically created content inherits the document's own `Normal`/`docDefaults`.
+
+  Preserve a complex field's run formatting (font size, color) when the field has no separate result run. A footer `PAGE` number whose `w:rPr` lives on the field run now keeps the surrounding text's size and color instead of falling back to the default.
+
+## 1.7.0
+
+### Minor Changes
+
+- ed04d10: Expose stable `data-para-id` attributes on rendered paragraph fragments and add `scrollToParaId(..., { highlight })` support for custom transient paragraph flashes.
+
+### Patch Changes
+
+- 35b5cee: Fix complex-script-only (RTL) runs rendering at font-size 0pt when copied to the clipboard and showing a blank font-size field in the toolbar. Changing a run's font size now sets both the Latin and complex-script size, matching Word.
+- 186598a: Reserve the document scrollbar gutter on both edges in the React editor so the page stays centered on platforms with classic scrollbars, matching the Vue editor. Fixes #888
+- dfd316f: Fix complex-script font size (w:szCs) and family (w:cs) fallback for RTL/CS runs.
+- 8e95d60: Fix a header (or footer) containing a page/margin-anchored shape — e.g. a full-page letterhead banner — inflating its interactive box to cover the whole page, which blocked clicks into the body text. The header/footer box now tracks the in-flow band height, and its overflowing anchored content is non-interactive in normal mode so the document text underneath stays clickable.
+- f2c9f9f: Add a "Select entire table" option to the table context menu and toolbar, and fix the underlying select-table command so it selects every cell (it previously collapsed the selection).
+- fc95983: Fix repeated table header overlapping body content on continuation pages when a row also breaks mid-content across the page boundary.
+- edd0bc2: Add themeable document-scrollbar CSS variables and apply the styled scrollbar to both React and Vue document scroll containers.
+- d4a27d4: Ensure a document whose last element is an isolating block (a table, text box, or content control) gets a trailing empty paragraph, so the caret can be placed below it and text can be added after it (matches Word, which never lets a body end with a table).
+
+## 1.6.2
+
+### Patch Changes
+
+- a8bce7a: Fix DOCX export validation at the source: normalize out-of-range paraId/textId and drop orphan comment anchors when parsing, preserve internal-target hyperlinks instead of rewriting them as external, unwrap targetless hyperlinks, and always emit a valid table grid.
+- 768b10e: Redesign the document outline toggle as a filled circular button in the left gutter (instead of a bare icon), tighten the outline panel's indentation, and keep the toggle and panel clear of the vertical ruler and of landscape pages.
+
+## 1.6.1
+
+### Patch Changes
+
+- 26a048f: Fix footnote rendering for footnotes referenced inside multi-page tables: reference marks now render superscript, the footnote-area number matches the note text's font, and a table that splits across pages distributes its footnotes to the page holding each row instead of dumping them all on the first table page.
+- 74ae87d: Preserve paragraph counts when DOCX imports contain leading hard page breaks. Fixes #830
+- a89af59: Preserve DOCX run boundaries during no-op ProseMirror round trips.
+- 6550426: Superscript and subscript text (including footnote/endnote reference marks) no longer increases the height of the line it sits on, matching Word.
+
+## 1.6.0
+
+### Patch Changes
+
+- 931931a: Fix the selection sliver not showing for empty paragraphs. Dragging a selection across a blank paragraph now paints the same fixed-width highlight already shown for `<br>` blank rows — `getSelectionRectsFromDom` now falls back to the enclosing `.layout-paragraph` position for unpositioned `.layout-empty-run` lines, mirroring the click/caret resolvers.
+- fa3383b: Balance terminal continuous multi-column sections so imported DOCX text flows across columns. Fixes #827.
+- 32c5382: Full-width floating (positioned) tables now paginate across pages instead of overflowing past the bottom margin. Previously such a table — common in contract templates where a full-width form table carries text-wrap positioning — rendered as one oversized block that bled past the page edge, left the next page blank, and pushed following content down. It now breaks across pages like Word and Google Docs, with the text after it flowing immediately below.
+- 7fe09f0: Share the paragraph-style-picker preview logic between the React and Vue toolbars. The filter/sort and per-style preview CSS now live once in `@eigenpal/docx-editor-core/utils/stylePreview` (`resolveParagraphStyleOptions` + `getStylePreviewProps`), which both adapters call, so the style dropdown can no longer drift between them. Also fixes a Vue toolbar bug where typing a font size and then clicking a preset could re-commit the typed value over the preset.
+- 7fe09f0: Unify the editor UI colors onto one CSS-variable token palette. The canonical chrome stylesheet now lives in `@eigenpal/docx-editor-core` (`packages/core/src/styles/editor.css`) and both adapters import it, so React and Vue can never drift. Component styles reference `--doc-*` tokens instead of hardcoded colors, and the shadcn HSL tokens are aligned to the same palette and support opacity modifiers. A commented `.ep-root.dark` scaffold is included as the structure for a future dark theme (no dark values are shipped yet — adding the `dark` class has no visual effect until they are filled in). Light-mode appearance is unchanged apart from minor consolidation of near-duplicate grays/blues. As part of this, the Vue full-screen loading overlay now uses the same dark backdrop with light text as React (previously a light backdrop), and the Vue editing-mode chip and toolbar dropdown elevation share React's hover/shadow tokens. The Vue toolbar buttons, dropdown triggers, menu items, and steppers now reference the same shadcn `foreground`/`muted-foreground`/`muted`/`border` tokens React uses (previously the `--doc-*` family), so the toolbar matches React in both light and dark mode; the dropdown triggers also render at React's normal weight (they previously looked bold), and the selected menu item uses React's grey highlight instead of an indigo tint.
+- f50a3c7: Render VML pictures (e.g. legacy header logos) instead of dropping them, and stop the watermark parser from claiming a non-watermark VML picture. Anchored images now follow their own `wp:positionH` alignment, defaulting to left like Word, rather than inheriting the paragraph alignment.
+- 7fe09f0: Polish the Vue toolbar and comment cards to match React. The toolbar font-size box is now correctly editable (typing commits on Enter/blur; +/− and arrow steppers no longer revert; the preset dropdown opens positioned), is the same height as React's, and steps by 1 beyond the preset list; the style-picker dropdown previews match React's sizes/weights and the menu is the same compact width instead of ballooning. Comment and tracked-change cards now use the shared near-white card color and drop shadow (new `--doc-card`/`--doc-card-shadow` tokens, sourced once in core) in both collapsed and expanded states, instead of a blue tint and a divergent shadow, matching React.
+
+  Further menu and submenu parity with React: the top menu bar (File/Format/Insert/Help) items and triggers use full-strength text instead of muted grey, with matching shortcut hints and submenu borders; the style dropdown no longer clips its last entries; font-picker group labels render Title Case; the alignment control is now a horizontal icon strip with a blue active state (matching React's AlignmentButtons) instead of a vertical labeled menu; and the comments sidebar width matches React (340px).
+
+## 1.5.0
+
+### Minor Changes
+
+- 44161e5: Vue: enable drag-to-select table cells, matching React. Dragging across cell boundaries now produces a cell selection, so multi-cell operations (delete row/column across a range, fill, merge) are reachable by dragging. The cell-drag logic is shared between React and Vue in core.
+
+### Patch Changes
+
+- 7d02ec1: Fix the text cursor landing on the wrong page when a table cell's content spans a page break. The caret now follows the cell content onto the continuation page instead of staying on the previous page.
+- 04130ef: Fix "Delete row" so it removes every row a multi-cell selection spans, not just the anchor row. Selecting all rows now deletes the whole table, matching Word.
+- ab38192: Support clickable inline Word checkbox content controls
+- 5cdfa5c: Fix a tall empty gap appearing below an inline image that is wider than the page column. The painter fits such an image to the column width (scaling its height down), but the line height still reserved the image's unscaled height. The measurement now reserves the rendered (scaled) height, so the image and the following text sit flush. Most visible when inserting a large image in the Vue editor.
+- 335ad6c: Add `setGoogleFontsEnabled(false)` (from `@eigenpal/docx-editor-core` or its `/utils` entry) so strict-CSP / offline embedders can disable the automatic Google Fonts fetching entirely, and skip that fetch automatically when a font already renders locally. Embedded and consumer-hosted (`fonts` prop) faces keep their metric-compatible Google fallback for glyph coverage.
+- c5a4b1e: Fix inline images overlapping following text when they wrap to their own line, and custom-style list fidelity: zero-padded custom numbering renders as in Word (`[0001]`), picking a numbered style from the toolbar now attaches its numbering and indents, style-attached numbering keeps the style's indents over the level's, and removing a style's numbering no longer hangs the first line back to the margin. Fixes #765, fixes #766.
+- ca005c5: Fix suggesting mode so pasting over a selection marks the replaced text as a tracked deletion and the pasted text as a tracked insertion, matching the behavior of typing over a selection.
+- 7d6daeb: Fix table column widths not being respected when opening exported documents in Word. Tables with explicit column widths (created in the editor or resized by dragging a column boundary) now export with fixed layout so Word honors the widths instead of autofitting. Also corrects `w:tblPr` child ordering to match the OOXML schema.
+- 5cdfa5c: Vue: insert images directly from Insert > Image like React — the OS file picker opens and the image is placed inline, fitted to the page width, with no intermediate dialog. This also fixes a tall empty gap that appeared below an inserted image wider than the page column. The read-file-fit-and-insert flow now lives in core (`insertImageFromFile`), so React and Vue share one code path and behave identically.
+
+## 1.4.0
+
+### Minor Changes
+
+- 1ab8b30: Image resize: drag a corner handle to scale (keeping aspect ratio) or an edge handle to stretch one side (width or height) and deliberately change the aspect ratio. Selection handles are now Word-style white dots. Inserted images keep their aspect ratio — a wide image dropped into a table cell or a narrow column now scales down to fit while staying in proportion, instead of squashing or overflowing the page. Fixes #266.
+
+### Patch Changes
+
+- 28a521a: Fix the text caret being as tall as the largest font on a line. The caret now matches the font size at the insertion point (like Word) instead of the whole line box, so clicking into small text on a line that also has large text shows a correctly-sized caret. Affects React and Vue. Fixes #748.
+
 ## 1.3.3
 
 ### Patch Changes

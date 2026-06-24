@@ -30,6 +30,7 @@ import {
   buildRowYPositions,
   isVisibleBorder,
   makeCutBorder,
+  makeTableBodyClip,
 } from './renderTableBorders';
 import type { RevisionInfo } from '../types/content/trackedChange';
 
@@ -288,6 +289,11 @@ function renderNestedTable(
 
   const rowYPositions = buildRowYPositions(measure.rows);
 
+  // RTL nested table (`w:bidiVisual`): mirror column geometry, same as the
+  // top-level renderer.
+  const bidi = block.bidi === true;
+  const tableWidth = measure.columnWidths.reduce((w, cw) => w + (cw ?? 0), 0);
+
   // Track spanning cells across rows
   const spanningCells = new Map<string, SpanningCell>();
 
@@ -310,7 +316,9 @@ function renderNestedTable(
       spanningCells,
       rowYPositions,
       undefined,
-      wholeTableTracked
+      wholeTableTracked,
+      bidi,
+      tableWidth
     );
     tableEl.appendChild(rowEl);
   }
@@ -466,9 +474,18 @@ type GridCell = {
  * pixel x offset from this table's column widths.
  */
 function computeCellGrid(block: TableBlock, columnWidths: number[]): GridCell[] {
+  // RTL table (`w:bidiVisual`): mirror x so logical column 0 lands at the right
+  // edge (width unchanged). vmerge re-emit + cut-edge borders inherit GridCell.x.
+  const bidi = block.bidi === true;
+  const tableWidth = bidi ? columnWidths.reduce((w, cw) => w + (cw ?? 0), 0) : 0;
   return resolveCellGrid(block).map((g) => {
     let x = 0;
     for (let c = 0; c < g.columnIndex; c++) x += columnWidths[c] ?? 0;
+    if (bidi) {
+      let cellWidth = 0;
+      for (let c = 0; c < g.colSpan; c++) cellWidth += columnWidths[g.columnIndex + c] ?? 0;
+      x = tableWidth - x - cellWidth;
+    }
     return {
       rowIndex: g.rowIndex,
       cellIndex: g.cellIndex,
@@ -498,7 +515,11 @@ function renderTableRow(
   isFirstRowInFragment?: boolean,
   /** When the parent table already carries a whole-table revision bar,
    * the per-row bar would double-paint. Suppress. */
-  suppressRowRevisionVisual?: boolean
+  suppressRowRevisionVisual?: boolean,
+  /** RTL table (`w:bidiVisual`): mirror cell x and swap first/last column. */
+  bidi = false,
+  /** Sum of `columnWidths`, used to mirror x when `bidi`. */
+  tableWidth = 0
 ): HTMLElement {
   const rowEl = doc.createElement('div');
   rowEl.className = TABLE_CLASS_NAMES.row;
@@ -579,15 +600,22 @@ function renderTableRow(
       }
     }
 
+    // Column-span width, computed up front so an RTL cell can mirror its x.
+    let cellWidth = 0;
+    for (let c = 0; c < colSpan && columnIndex + c < columnWidths.length; c++) {
+      cellWidth += columnWidths[columnIndex + c] ?? 0;
+    }
+
     const isFirstRow = rowIndex === 0 || isFirstRowInFragment === true;
     const isLastRow = rowIndex + rowSpan >= totalRows;
-    const isFirstCol = columnIndex === 0;
-    const isLastCol = columnIndex + colSpan >= columnWidths.length;
+    // In an RTL table the visual first/last columns are the logical last/first.
+    const isFirstCol = bidi ? columnIndex + colSpan >= columnWidths.length : columnIndex === 0;
+    const isLastCol = bidi ? columnIndex === 0 : columnIndex + colSpan >= columnWidths.length;
 
     const cellEl = renderTableCell(
       cell,
       cellMeasure,
-      x,
+      bidi ? tableWidth - x - cellWidth : x,
       cellHeight,
       { isFirstRow, isLastRow, isFirstCol, isLastCol },
       context,
@@ -619,10 +647,9 @@ function renderTableRow(
       });
     }
 
-    // Move x by the width of columns this cell spans
-    for (let c = 0; c < colSpan && columnIndex + c < columnWidths.length; c++) {
-      x += columnWidths[columnIndex + c] ?? 0;
-    }
+    // Move x by the width of columns this cell spans (logical left-to-right;
+    // the mirror is applied per-cell above, not to this running accumulator).
+    x += cellWidth;
 
     // Advance column index by colSpan
     columnIndex += colSpan;
@@ -715,6 +742,10 @@ export function renderTableFragment(
     tableEl.style.overflowY = 'hidden';
   }
 
+  // RTL table mirror axis (see computeCellGrid), reused by the handles below.
+  const bidi = block.bidi === true;
+  const tableWidth = measure.columnWidths.reduce((w, cw) => w + (cw ?? 0), 0);
+
   // Add column resize handles at each column boundary
   let handleX = 0;
   for (let col = 0; col < measure.columnWidths.length - 1; col++) {
@@ -722,7 +753,7 @@ export function renderTableFragment(
     const handle = doc.createElement('div');
     handle.className = TABLE_CLASS_NAMES.resizeHandle;
     handle.style.position = 'absolute';
-    handle.style.left = `${handleX - 3}px`;
+    handle.style.left = `${(bidi ? tableWidth - handleX : handleX) - 3}px`;
     handle.style.top = '0';
     handle.style.width = '6px';
     handle.style.height = '100%';
@@ -764,7 +795,9 @@ export function renderTableFragment(
         headerSpans,
         rowYPositions,
         hdrIdx === 0, // first header row draws top border
-        fragWholeTableTracked
+        fragWholeTableTracked,
+        bidi,
+        tableWidth
       );
       rowEl.dataset.repeatedHeader = 'true';
       tableEl.appendChild(rowEl);
@@ -789,6 +822,19 @@ export function renderTableFragment(
       ? Math.round(fragment.height)
       : toFragmentY(rowYPositions[fragment.toRow] ?? 0);
   tableEl.style.height = `${visibleHeight}px`;
+
+  // A repeated header occupies [0, headerHeight]; the windowed body gets its own
+  // clip box below it so a row resumed mid-content doesn't paint over the header
+  // (see makeTableBodyClip). With no header, the table element is reused as-is.
+  const { bodyParent, bodyOriginY } = makeTableBodyClip(
+    tableEl,
+    headerHeight,
+    visibleHeight,
+    fragment.width,
+    doc
+  );
+  // Full-table Y within `bodyParent` (== toFragmentY when there's no clip box).
+  const toBodyY = (fullY: number): number => toFragmentY(fullY) - bodyOriginY;
 
   // Track spanning cells across rows within this fragment.
   const spanningCells = new Map<string, SpanningCell>();
@@ -826,8 +872,13 @@ export function renderTableFragment(
     });
 
     const isLastRow = g.rowIndex + g.rowSpan >= block.rows.length;
-    const isFirstCol = g.columnIndex === 0;
-    const isLastCol = g.columnIndex + g.colSpan >= measure.columnWidths.length;
+    // RTL: visual first/last columns are the logical last/first.
+    const isFirstCol = bidi
+      ? g.columnIndex + g.colSpan >= measure.columnWidths.length
+      : g.columnIndex === 0;
+    const isLastCol = bidi
+      ? g.columnIndex === 0
+      : g.columnIndex + g.colSpan >= measure.columnWidths.length;
     const cellEl = renderTableCell(
       g.cell,
       cellMeasure,
@@ -837,14 +888,14 @@ export function renderTableFragment(
       context,
       doc
     );
-    cellEl.style.top = `${toFragmentY(rowYPositions[g.rowIndex] ?? 0)}px`;
+    cellEl.style.top = `${toBodyY(rowYPositions[g.rowIndex] ?? 0)}px`;
     cellEl.dataset.columnIndex = String(g.columnIndex);
     // Synthetic continuation slice: not directly selectable (the editable cell
     // lives on the fragment that owns its restart row).
     cellEl.dataset.vmergeContinuation = 'true';
     delete cellEl.dataset.pmStart;
     delete cellEl.dataset.pmEnd;
-    tableEl.appendChild(cellEl);
+    bodyParent.appendChild(cellEl);
   }
 
   // Render content rows from fragment.fromRow to fragment.toRow in window coords.
@@ -865,7 +916,7 @@ export function renderTableFragment(
       row,
       rowMeasure,
       rowIndex,
-      toFragmentY(rowYPositions[rowIndex] ?? 0),
+      toBodyY(rowYPositions[rowIndex] ?? 0),
       measure.columnWidths,
       block.rows.length,
       context,
@@ -873,10 +924,12 @@ export function renderTableFragment(
       spanningCells,
       rowYPositions,
       isFirstRowInFragment,
-      fragWholeTableTracked
+      fragWholeTableTracked,
+      bidi,
+      tableWidth
     );
 
-    tableEl.appendChild(rowEl);
+    bodyParent.appendChild(rowEl);
   }
 
   // Close a fragment at a page break with a horizontal border on the cut edge,
@@ -963,11 +1016,10 @@ export function renderTableFragment(
 
   // Right edge handle (only on fragments containing the last row)
   if (endsTable) {
-    const totalWidth = measure.columnWidths.reduce((w, cw) => w + cw, 0);
     const rightHandle = doc.createElement('div');
     rightHandle.className = TABLE_CLASS_NAMES.tableEdgeHandleRight;
     rightHandle.style.position = 'absolute';
-    rightHandle.style.left = `${totalWidth - 3}px`;
+    rightHandle.style.left = `${tableWidth - 3}px`;
     rightHandle.style.top = '0';
     rightHandle.style.width = '6px';
     rightHandle.style.height = '100%';

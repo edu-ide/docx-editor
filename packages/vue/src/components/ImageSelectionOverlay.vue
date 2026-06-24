@@ -59,10 +59,13 @@ import {
   commitImageResize,
   commitImageFloatMove,
   commitImageInlineMove,
+  calculateResizedImageDimensions,
+  type ImageResizeHandle,
 } from '@eigenpal/docx-editor-core/prosemirror/imageCommit';
 import { findBodyPmAnchor } from '@eigenpal/docx-editor-core/layout-bridge';
 import { findImageElement } from '@eigenpal/docx-editor-core/layout-painter';
 import { Z_INDEX } from '../styles/zIndex';
+import { computeImageOverlayRect } from '../composables/imageOverlayRect';
 import { useTranslation } from '../i18n';
 
 const { t } = useTranslation();
@@ -70,8 +73,8 @@ const { t } = useTranslation();
 import type { ImageSelectionInfo } from './imageSelectionTypes';
 export type { ImageSelectionInfo };
 
-/** 4 corners + 4 edge midpoints — mirrors the React overlay's handle set. */
-type ResizeHandle = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w';
+/** Resize handle position; the resize math lives in core (shared with React). */
+type ResizeHandle = ImageResizeHandle;
 
 const props = defineProps<{
   imageInfo: ImageSelectionInfo | null;
@@ -179,69 +182,123 @@ function updatePosition() {
 
   const parentRect = parent.getBoundingClientRect();
   const imageRect = imgEl.getBoundingClientRect();
-  const z = props.zoom;
 
-  // The overlay is `position: absolute` inside its offsetParent, which is the
-  // scroll container (`.docx-editor-vue__pages-viewport`). Absolutely-positioned
+  // The overlay is `position: absolute` inside its offsetParent, the scroll
+  // container (`.docx-editor-vue__pages-viewport`). Absolutely-positioned
   // children are placed relative to the *content* origin, so the scroll offset
-  // must be added back — otherwise the frame lands `scrollTop` px too high once
-  // the page has scrolled (e.g. after the image is pushed onto a later page and
-  // the user scrolls down to it). Mirrors the scroll handling the text-caret
-  // path in `useSelectionSync` already does.
-  overlayRect.value = {
-    left: (imageRect.left - parentRect.left + parent.scrollLeft) / z,
-    top: (imageRect.top - parentRect.top + parent.scrollTop) / z,
-    width: imageRect.width / z,
-    height: imageRect.height / z,
+  // is added back, and the inline-start scrollbar gutter (from
+  // `scrollbar-gutter: stable both-edges`) is subtracted — otherwise the frame
+  // lands `scrollTop` px too high after scrolling, or shifted right by the
+  // gutter width on platforms with classic scrollbars (issue #764). See
+  // `computeImageOverlayRect` for the geometry.
+  overlayRect.value = computeImageOverlayRect({
+    imageRect,
+    parentRect,
+    scrollLeft: parent.scrollLeft,
+    scrollTop: parent.scrollTop,
+    parentOffsetWidth: parent.offsetWidth,
+    parentClientWidth: parent.clientWidth,
+    zoom: props.zoom,
+  });
+}
+
+// The image's painted position can keep moving for a few frames after a
+// trigger, and this overlay — unlike React's, which lives *inside* the scaled
+// container and tracks for free — sits in the unscaled viewport and must
+// re-anchor itself across that window. Two triggers need it:
+//   - Selecting an image right after load: `.docx-editor-vue__pages` re-centers
+//     horizontally as the layout settles (a `translateX` change, so no
+//     ResizeObserver would catch it), shifting the image out from under a
+//     frame measured one frame too early (issue #764).
+//   - Zoom: the pages `transform` animates over ~0.2s (DocxEditor.vue
+//     `pagesContainerStyle`); `transitionend` is unreliable (never fires under
+//     `prefers-reduced-motion`).
+//
+// So recompute each frame until the rect holds steady — but only honor
+// steadiness AFTER a minimum window: in the first frame or two the rect is
+// momentarily steady at its pre-transition position, and latching there strands
+// the frame. Track elapsed time from the rAF timestamp (not a per-frame guess)
+// so high-refresh displays can't race through the window, and cap it so a
+// perpetually-moving rect can't spin.
+const SETTLE_MIN_MS = 250; // covers the 0.2s pages transform transition + buffer
+const SETTLE_CAP_MS = 700; // hard stop so a perpetually-moving rect can't spin
+
+// Cancel for the in-flight re-anchor loop. Only one runs at a time — a fresh
+// trigger cancels and restarts it so overlapping triggers don't pile up rAFs.
+let cancelReanchor: (() => void) | null = null;
+
+// Re-measure the frame against the image every frame until the layout holds
+// steady. The image's painted position keeps moving for a few frames after a
+// trigger (zoom and the comments-sidebar shift both animate the pages
+// `transform` over ~0.2s — see DocxEditor.vue `pagesContainerStyle`), and this
+// overlay — unlike React's, which lives *inside* the scaled+translated container
+// and tracks for free — sits in the unscaled viewport and must re-anchor across
+// that window. Only honor steadiness AFTER a minimum window: in the first frame
+// or two the rect is momentarily steady at its pre-transition position, and
+// latching there strands the frame. Track elapsed from the rAF timestamp so
+// high-refresh displays can't race through the window; cap it so a
+// perpetually-moving rect can't spin.
+function scheduleReanchor() {
+  cancelReanchor?.();
+  let raf = 0;
+  let prevKey = '';
+  let stableFrames = 0;
+  let startTs = 0;
+  const step = (ts: number) => {
+    if (startTs === 0) startTs = ts;
+    const elapsed = ts - startTs;
+    updatePosition();
+    const r = overlayRect.value;
+    const key = r ? `${r.left}|${r.top}|${r.width}|${r.height}` : '';
+    stableFrames = key === prevKey ? stableFrames + 1 : 0;
+    prevKey = key;
+    const settled = elapsed >= SETTLE_MIN_MS && stableFrames >= 2;
+    if (!settled && elapsed < SETTLE_CAP_MS) {
+      raf = requestAnimationFrame(step);
+    }
+  };
+  raf = requestAnimationFrame(step);
+  // Safety net: rAF is paused while the tab is backgrounded, so a timer also
+  // re-measures once the layout has settled, guaranteeing a correct final anchor.
+  const settleTimer = setTimeout(updatePosition, SETTLE_MIN_MS);
+  cancelReanchor = () => {
+    cancelAnimationFrame(raf);
+    clearTimeout(settleTimer);
   };
 }
 
-// Update when imageInfo changes
+// Re-anchor when the selected image changes. The first rAF step runs after Vue
+// has mounted the `v-if` overlay, so `overlayRootRef` is available by then.
 watch(
   () => props.imageInfo,
-  async () => {
-    await nextTick();
-    updatePosition();
+  (_info, _prev, onCleanup) => {
+    if (!props.imageInfo) {
+      overlayRect.value = null;
+      return;
+    }
+    scheduleReanchor();
+    onCleanup(() => cancelReanchor?.());
   },
   { immediate: true }
 );
 
-// Re-anchor when zoom changes. Unlike React's overlay — which lives *inside*
-// the scaled container, so its layout-px position is zoom-invariant — this
-// overlay sits in the unscaled viewport, so the image's measured viewport rect
-// shifts and resizes as zoom changes and the frame must be recomputed. The
-// `.docx-editor-vue__pages` container animates its `transform` over ~0.2s (see
-// DocxEditor.vue `pagesContainerStyle`) and the layout may also repaint, so the
-// image rect keeps moving for a few frames — and `transitionend` is unreliable
-// (it never fires under `prefers-reduced-motion`). So recompute each frame
-// until the rect holds steady (or a short cap elapses): this tracks an animated
-// zoom smoothly and settles instantly when there's no animation.
+// Re-anchor when zoom changes.
 watch(
   () => props.zoom,
-  (_z, _prev, onCleanup) => {
+  () => {
     if (!props.imageInfo) return;
-    let raf = 0;
-    let prevKey = '';
-    let stableFrames = 0;
-    let elapsed = 0;
-    const step = (last: number) => {
-      updatePosition();
-      const r = overlayRect.value;
-      const key = r ? `${r.left}|${r.top}|${r.width}|${r.height}` : '';
-      stableFrames = key === prevKey ? stableFrames + 1 : 0;
-      prevKey = key;
-      // ~16ms/frame; cap at ~30 frames (≈0.5s) so a stuck rect can't spin.
-      elapsed += last;
-      if (stableFrames < 2 && elapsed < 500) {
-        raf = requestAnimationFrame(() => step(16));
-      }
-    };
-    raf = requestAnimationFrame(() => step(16));
-    onCleanup(() => cancelAnimationFrame(raf));
+    scheduleReanchor();
   }
 );
 
-// Update on scroll/resize
+// While an image is selected, keep the frame on it across the layout shifts
+// that fire no zoom/imageInfo event: page scroll/resize, and the comments
+// sidebar sliding `.docx-editor-vue__pages` sideways (a `translateX`) to make
+// room for the panel. The sidebar shift moves the image with no scroll/resize
+// event, so observe the pages container's style and re-anchor through the
+// ~0.2s transition — React's overlay lives inside that container and tracks for
+// free. The transform observer is deferred to the next tick because the overlay
+// mounts via `v-if`, so `getPagesEl` isn't resolvable until then.
 watch(
   () => props.imageInfo,
   (_newVal, _oldVal, onCleanup) => {
@@ -257,13 +314,24 @@ watch(
     // scrolls. `scroll` events don't bubble, so the listener must sit on the
     // viewport or it never fires and the overlay drifts off the image on scroll.
     const viewport = overlayRootRef.value?.closest('.docx-editor-vue__pages-viewport');
-
     viewport?.addEventListener('scroll', handleScrollOrResize, { passive: true });
     window.addEventListener('resize', handleScrollOrResize, { passive: true });
 
+    let transformObserver: MutationObserver | null = null;
+    let cancelled = false;
+    nextTick(() => {
+      if (cancelled || !props.imageInfo) return;
+      const pages = getPagesEl();
+      if (!pages) return;
+      transformObserver = new MutationObserver(() => scheduleReanchor());
+      transformObserver.observe(pages, { attributes: true, attributeFilter: ['style'] });
+    });
+
     onCleanup(() => {
+      cancelled = true;
       viewport?.removeEventListener('scroll', handleScrollOrResize);
       window.removeEventListener('resize', handleScrollOrResize);
+      transformObserver?.disconnect();
       if (rafId) cancelAnimationFrame(rafId);
     });
   },
@@ -345,39 +413,8 @@ const handles = computed<Array<{ pos: ResizeHandle; style: Record<string, string
 });
 
 // ---- Resize logic ----
-
-const isCornerHandle = (h: ResizeHandle): boolean => h.length === 2;
-
-/**
- * Resize math, mirroring React's `calculateNewDimensions`:
- *  - corner handles move both edges; aspect ratio is preserved unless Shift is held
- *  - edge handles move exactly one dimension and never preserve aspect
- */
-function calculateNewDimensions(
-  handle: ResizeHandle,
-  deltaX: number,
-  deltaY: number,
-  sw: number,
-  sh: number,
-  lockAspect: boolean
-): { width: number; height: number } {
-  const signX = handle.includes('w') ? -1 : handle.includes('e') ? 1 : 0;
-  const signY = handle.includes('n') ? -1 : handle.includes('s') ? 1 : 0;
-
-  let newW = sw + deltaX * signX;
-  let newH = sh + deltaY * signY;
-
-  if (isCornerHandle(handle) && lockAspect) {
-    const scale = Math.max(newW / sw, newH / sh);
-    newW = sw * scale;
-    newH = sh * scale;
-  }
-
-  return {
-    width: signX === 0 ? sw : Math.max(20, Math.min(2000, newW)),
-    height: signY === 0 ? sh : Math.max(20, Math.min(2000, newH)),
-  };
-}
+// The dimension math lives in core (`calculateResizedImageDimensions`), shared
+// with the React overlay.
 
 function startResize(e: MouseEvent, handle: string) {
   if (!props.imageInfo || !overlayRect.value) return;
@@ -402,7 +439,7 @@ function onResizeMove(e: MouseEvent) {
   const deltaY = (e.clientY - startY) / z;
   const lockAspect = !e.shiftKey;
 
-  const dims = calculateNewDimensions(
+  const dims = calculateResizedImageDimensions(
     resizeHandle,
     deltaX,
     deltaY,
@@ -685,6 +722,7 @@ onBeforeUnmount(() => {
     moveGhostEl = null;
   }
   if (rafId) cancelAnimationFrame(rafId);
+  cancelReanchor?.();
 });
 </script>
 
@@ -695,7 +733,7 @@ onBeforeUnmount(() => {
 .image-overlay__border {
   position: absolute;
   inset: -2px;
-  border: 2px solid #2563eb;
+  border: 2px solid var(--doc-primary);
   border-radius: 2px;
   pointer-events: none;
 }
@@ -704,14 +742,16 @@ onBeforeUnmount(() => {
   inset: 0;
   pointer-events: auto;
 }
+/* White circular dots with a thin accent ring — matches the resize handles in
+   Word / PowerPoint. Mirrors the React overlay's handleBaseStyles. */
 .image-overlay__handle {
   position: absolute;
   width: 10px;
   height: 10px;
-  background: #2563eb;
-  border: 1px solid white;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
-  border-radius: 2px;
+  background: var(--doc-surface);
+  border: 1.5px solid var(--doc-primary);
+  box-shadow: 0 1px 2.5px var(--doc-shadow-strong);
+  border-radius: 50%;
   z-index: 16;
   box-sizing: border-box;
   pointer-events: auto;
@@ -722,7 +762,7 @@ onBeforeUnmount(() => {
   top: -22px;
   width: 0;
   height: 22px;
-  border-left: 1px solid #2563eb;
+  border-left: 1px solid var(--doc-primary);
   pointer-events: none;
 }
 .image-overlay__rotate-handle {
@@ -731,9 +771,9 @@ onBeforeUnmount(() => {
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: #fff;
-  border: 2px solid #2563eb;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  background: var(--doc-surface);
+  border: 2px solid var(--doc-primary);
+  box-shadow: 0 1px 3px var(--doc-shadow-strong);
   cursor: grab;
   z-index: 16;
   box-sizing: border-box;
@@ -747,7 +787,7 @@ onBeforeUnmount(() => {
   bottom: -24px;
   left: 50%;
   transform: translateX(-50%);
-  background: rgba(0, 0, 0, 0.75);
+  background: var(--doc-overlay);
   color: #fff;
   font-size: 11px;
   padding: 2px 8px;

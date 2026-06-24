@@ -24,6 +24,8 @@ import {
 import {
   findBodyPmAnchor,
   applyCellSelectionHighlight,
+  resetImeCaretAnchor,
+  syncImeCaretAnchor,
 } from '@eigenpal/docx-editor-core/layout-bridge';
 import { findImageElement } from '@eigenpal/docx-editor-core/layout-painter';
 import type { ImageSelectionInfo } from '../components/imageSelectionTypes';
@@ -31,6 +33,7 @@ import { Z_INDEX } from '../styles/zIndex';
 
 export interface UseSelectionSyncOptions {
   editorView: Ref<EditorView | null>;
+  hiddenContainer?: Ref<HTMLElement | null>;
   pagesRef: Ref<HTMLElement | null>;
   /**
    * Current zoom factor. The caret + selection rects are painted into the
@@ -145,7 +148,10 @@ export function useSelectionSync(opts: UseSelectionSyncOptions): UseSelectionSyn
 
     // In HF edit mode the body PM has no business showing a caret or
     // selection — the user is editing the header/footer above.
-    if (opts.isHfEditing?.value) return;
+    if (opts.isHfEditing?.value) {
+      resetImeCaretAnchor(opts.hiddenContainer?.value);
+      return;
+    }
 
     // Keep the image overlay glued to the live selection after every change.
     syncSelectedImageToSelection();
@@ -162,7 +168,10 @@ export function useSelectionSync(opts: UseSelectionSyncOptions): UseSelectionSyn
     // deferred sync above) so the caret reappears the instant focus leaves the
     // image.
     const sel = view.state.selection;
-    if (sel instanceof NodeSelection && sel.node.type.name === 'image') return;
+    if (sel instanceof NodeSelection && sel.node.type.name === 'image') {
+      resetImeCaretAnchor(opts.hiddenContainer?.value);
+      return;
+    }
 
     const { from, to, empty } = sel;
 
@@ -176,16 +185,24 @@ export function useSelectionSync(opts: UseSelectionSyncOptions): UseSelectionSyn
     // from `getBoundingClientRect`/`getClientRects` is post-transform px.
     // Divide those by zoom so the overlay divs — children of the scaled
     // container — render at the right spot once the parent's scale is applied.
-    // (The caret *height* is the exception: it comes from `offsetHeight`, a
-    // layout-px value the transform doesn't touch, so it's used as-is and the
-    // parent's scale grows it to match the line.)
+    // The caret *height* is returned in layout px by getCaretPositionFromDom
+    // (it normalizes its one scaled measurement by `zoom`; #928), so it is
+    // used as-is and the parent's scale grows it to match the line.
     const zoom = opts.zoom.value || 1;
 
     if (empty) {
       // Draw blinking caret
       const overlayRect = container.getBoundingClientRect();
-      const caret = getCaretPositionFromDom(container, from, overlayRect);
+      const caret = getCaretPositionFromDom(container, from, overlayRect, zoom);
       if (caret) {
+        syncImeCaretAnchor({
+          hiddenHost: opts.hiddenContainer?.value,
+          editorView: view,
+          visibleCaret: {
+            left: overlayRect.left + caret.x,
+            top: overlayRect.top + caret.y,
+          },
+        });
         const el = document.createElement('div');
         el.className = 'vue-caret';
         el.style.cssText = `
@@ -194,7 +211,7 @@ export function useSelectionSync(opts: UseSelectionSyncOptions): UseSelectionSyn
           top: ${caret.y / zoom + scrollTop}px;
           width: 2px;
           height: ${caret.height}px;
-          background: #000;
+          background: var(--doc-caret, #000);
           pointer-events: none;
           z-index: ${Z_INDEX.selectionOverlay};
         `;
@@ -207,9 +224,13 @@ export function useSelectionSync(opts: UseSelectionSyncOptions): UseSelectionSyn
           visible = !visible;
           if (caretEl) caretEl.style.opacity = visible ? '1' : '0';
         }, 530);
+      } else if (!view.composing) {
+        resetImeCaretAnchor(opts.hiddenContainer?.value);
       }
       return;
     }
+
+    if (!view.composing) resetImeCaretAnchor(opts.hiddenContainer?.value);
 
     // Draw selection highlight rects (character-level)
     const overlayRect = container.getBoundingClientRect();

@@ -22,7 +22,7 @@
     <div
       v-if="state && state.open"
       ref="menuRef"
-      class="image-ctx-menu"
+      :class="['image-ctx-menu', portalClass]"
       role="menu"
       :aria-label="t('imageWrap.menu.ariaLabel')"
       data-testid="image-context-menu"
@@ -107,6 +107,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import MaterialSymbol from './ui/MaterialSymbol.vue';
+import { useDocxPortalClass } from '../composables/usePortalClass';
 import { useTranslation } from '../i18n';
 import {
   IMAGE_LAYOUT_OPTIONS,
@@ -146,6 +147,8 @@ function handleOpenProperties() {
 }
 
 const { t } = useTranslation();
+// Re-apply the editor's `.ep-root` token scope to this body-teleported menu.
+const portalClass = useDocxPortalClass();
 
 const ICON_SIZE = 18;
 const MENU_WIDTH = 260;
@@ -232,10 +235,10 @@ function handleKeyDown(e: KeyboardEvent) {
   z-index: 399;
 }
 .image-ctx-menu {
-  background: #fff;
-  border: 1px solid var(--doc-border-light, #e0e0e0);
+  background: var(--doc-surface);
+  border: 1px solid var(--doc-border-light);
   border-radius: 8px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 2px 10px var(--doc-shadow);
   padding: 4px 0;
   overflow: hidden;
   outline: none;
@@ -250,30 +253,30 @@ function handleKeyDown(e: KeyboardEvent) {
   background: transparent;
   cursor: pointer;
   font-size: 13px;
-  color: var(--doc-text, #222);
+  color: var(--doc-text);
   text-align: left;
 }
 .image-ctx-menu__item:hover {
-  background: var(--doc-primary-light, #eef4ff);
+  background: var(--doc-primary-light);
 }
 .image-ctx-menu__icon {
   display: inline-flex;
   width: 18px;
-  color: var(--doc-text-muted, #666);
+  color: var(--doc-text-muted);
 }
 .image-ctx-menu__item--current .image-ctx-menu__icon {
-  color: var(--doc-primary, #2563eb);
+  color: var(--doc-primary);
 }
 .image-ctx-menu__label {
   flex: 1;
 }
 .image-ctx-menu__current-dot {
   font-size: 11px;
-  color: var(--doc-primary, #2563eb);
+  color: var(--doc-primary);
 }
 .image-ctx-menu__divider {
   height: 1px;
-  background: var(--doc-border-light, #e0e0e0);
+  background: var(--doc-border-light);
   margin: 4px 0;
 }
 .image-ctx-menu__item--text {
@@ -283,7 +286,7 @@ function handleKeyDown(e: KeyboardEvent) {
 }
 .image-ctx-menu__shortcut {
   font-size: 12px;
-  color: var(--doc-text-muted, #6b7280);
+  color: var(--doc-text-muted);
 }
 .image-ctx-menu__item:disabled {
   opacity: 0.4;

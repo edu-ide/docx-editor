@@ -30,18 +30,38 @@
     <div class="tc-card__body">
       <template v-if="change.type === 'replacement'">
         {{ t('trackedChanges.replaced') }}
-        <span class="tc-card__deleted">&quot;{{ truncateText(change.deletedText || '') }}&quot;</span>
+        <span class="tc-card__deleted"
+          >&quot;{{ truncateText(change.deletedText || '') }}&quot;</span
+        >
         {{ t('trackedChanges.with') }}
         <span class="tc-card__inserted">&quot;{{ truncateText(change.text) }}&quot;</span>
       </template>
       <template v-else-if="change.type === 'paragraphMarkInsertion'">
-        {{ t('revisions.paragraphMarkInserted') }}<template v-if="change.text">: <span class="tc-card__inserted">&quot;{{ truncateText(change.text) }}&quot;</span></template>
+        {{ t('revisions.paragraphMarkInserted')
+        }}<template v-if="change.text"
+          >:
+          <span class="tc-card__inserted"
+            >&quot;{{ truncateText(change.text) }}&quot;</span
+          ></template
+        >
       </template>
       <template v-else-if="change.type === 'paragraphMarkDeletion'">
-        {{ t('revisions.paragraphMarkDeleted') }}<template v-if="change.text">: <span class="tc-card__deleted">&quot;{{ truncateText(change.text) }}&quot;</span></template>
+        {{ t('revisions.paragraphMarkDeleted')
+        }}<template v-if="change.text"
+          >:
+          <span class="tc-card__deleted"
+            >&quot;{{ truncateText(change.text) }}&quot;</span
+          ></template
+        >
       </template>
       <template v-else-if="change.type === 'paragraphPropertiesChanged'">
-        {{ t('revisions.paragraphPropertiesChanged') }}<template v-if="change.text">: <span class="tc-card__changed">&quot;{{ truncateText(change.text) }}&quot;</span></template>
+        {{ t('revisions.paragraphPropertiesChanged')
+        }}<template v-if="change.text"
+          >:
+          <span class="tc-card__changed"
+            >&quot;{{ truncateText(change.text) }}&quot;</span
+          ></template
+        >
       </template>
       <template v-else-if="change.type === 'rowInserted'">
         <span class="tc-card__inserted">{{ t('revisions.rowInserted') }}</span>
@@ -81,8 +101,11 @@
       </template>
     </div>
 
-    <!-- Reply input — mirrors React TrackedChangeCard.tsx:103. Lets
-         a user thread a comment under a tracked change. -->
+    <!-- Threaded replies + reply input — mirrors React
+         TrackedChangeCard.tsx. Replies are child comments keyed by
+         parentId === revisionId. -->
+    <ReplyThread :replies="replies" :is-expanded="expanded" />
+
     <ReplyInput
       v-if="expanded"
       @submit="(text: string) => $emit('reply', change.revisionId, text)"
@@ -92,18 +115,23 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
+import type { Comment } from '@eigenpal/docx-editor-core/types/content';
 import type { TrackedChangeEntry } from './sidebarUtils';
 import { formatDate, truncateText } from './sidebarUtils';
 import Avatar from './Avatar.vue';
 import MaterialSymbol from '../ui/MaterialSymbol.vue';
+import ReplyThread from './ReplyThread.vue';
 import ReplyInput from './ReplyInput.vue';
 import { useTranslation } from '../../i18n';
 
 const { t } = useTranslation();
 
+// `replies` is always supplied by UnifiedSidebar (`item.replies ?? []`),
+// matching the sibling CommentCard. Required, like React's TrackedChangeCard.
 const props = defineProps<{
   change: TrackedChangeEntry;
   expanded: boolean;
+  replies: Comment[];
 }>();
 
 const emit = defineEmits<{
@@ -141,20 +169,19 @@ function onReject() {
 .tc-card {
   padding: 8px 10px;
   border-radius: 8px;
-  background: #f8fbff;
+  background: var(--doc-card);
   cursor: pointer;
-  box-shadow:
-    0 1px 3px rgba(60, 64, 67, 0.2),
-    0 2px 6px rgba(60, 64, 67, 0.08);
+  box-shadow: var(--doc-card-shadow);
   margin-bottom: 6px;
-  transition: box-shadow 0.15s ease, background-color 0.15s ease, padding 0.15s ease;
+  transition:
+    box-shadow 0.15s ease,
+    background-color 0.15s ease,
+    padding 0.15s ease;
 }
 .tc-card--expanded {
   padding: 10px 12px;
-  background: #fff;
-  box-shadow:
-    0 1px 3px rgba(60, 64, 67, 0.3),
-    0 4px 8px 3px rgba(60, 64, 67, 0.15);
+  background: var(--doc-surface);
+  box-shadow: var(--doc-card-shadow-strong);
 }
 .tc-card__head {
   display: flex;
@@ -168,11 +195,11 @@ function onReject() {
 .tc-card__author {
   font-size: 13px;
   font-weight: 600;
-  color: #202124;
+  color: var(--doc-text);
 }
 .tc-card__date {
   font-size: 11px;
-  color: #5f6368;
+  color: var(--doc-text-muted);
 }
 .tc-card__actions {
   display: flex;
@@ -184,29 +211,29 @@ function onReject() {
   border: none;
   cursor: pointer;
   padding: 4px;
-  color: #5f6368;
+  color: var(--doc-text-muted);
   display: flex;
   border-radius: 50%;
 }
 .tc-card__icon-btn:hover {
-  background: rgba(60, 64, 67, 0.08);
+  background: var(--doc-shadow-subtle);
 }
 .tc-card__body {
   font-size: 13px;
   line-height: 20px;
-  color: #202124;
+  color: var(--doc-text);
   margin-top: 6px;
 }
 .tc-card__deleted {
-  color: #c5221f;
+  color: var(--doc-error);
   font-weight: 500;
 }
 .tc-card__inserted {
-  color: #137333;
+  color: var(--doc-success);
   font-weight: 500;
 }
 .tc-card__changed {
-  color: #5f6368;
+  color: var(--doc-text-muted);
   font-weight: 500;
 }
 </style>

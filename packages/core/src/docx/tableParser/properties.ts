@@ -16,11 +16,9 @@
 import type {
   TableMeasurement,
   TableWidthType,
-  TableBorders,
   TableLook,
   CellMargins,
   FloatingTableProperties,
-  BorderSpec,
   ShadingProperties,
   ColorValue,
   TableStructuralChangeInfo,
@@ -89,99 +87,9 @@ export function parsePropertyChangeInfo(
 // BORDER PARSING
 // ============================================================================
 
-/**
- * Parse a single border specification
- *
- * @param element - Border element (w:top, w:bottom, etc.)
- * @returns Parsed border or undefined
- */
-export function parseBorderSpec(element: XmlElement | null): BorderSpec | undefined {
-  if (!element) return undefined;
-
-  const styleStr = getAttribute(element, 'w', 'val') ?? 'none';
-  const style = styleStr as BorderSpec['style'];
-
-  const border: BorderSpec = { style };
-
-  // Size in eighths of a point
-  const sz = parseNumericAttribute(element, 'w', 'sz');
-  if (sz !== undefined) {
-    border.size = sz;
-  }
-
-  // Space from text in points
-  const space = parseNumericAttribute(element, 'w', 'space');
-  if (space !== undefined) {
-    border.space = space;
-  }
-
-  // Color (border uses w:color, not w:val)
-  const color = getAttribute(element, 'w', 'color');
-  const themeColor = getAttribute(element, 'w', 'themeColor');
-  const themeTint = getAttribute(element, 'w', 'themeTint');
-  const themeShade = getAttribute(element, 'w', 'themeShade');
-  if (color || themeColor || themeTint || themeShade) {
-    border.color = {
-      rgb: color ?? undefined,
-      themeColor: themeColor as ColorValue['themeColor'],
-      themeTint: themeTint ?? undefined,
-      themeShade: themeShade ?? undefined,
-    };
-  }
-
-  // Shadow effect
-  const shadow = getAttribute(element, 'w', 'shadow');
-  if (shadow === '1' || shadow === 'true') {
-    border.shadow = true;
-  }
-
-  // Frame effect
-  const frame = getAttribute(element, 'w', 'frame');
-  if (frame === '1' || frame === 'true') {
-    border.frame = true;
-  }
-
-  return border;
-}
-
-/**
- * Parse table borders (w:tblBorders or w:tcBorders)
- *
- * @param bordersElement - The borders container element
- * @returns Parsed borders or undefined
- */
-export function parseTableBorders(bordersElement: XmlElement | null): TableBorders | undefined {
-  if (!bordersElement) return undefined;
-
-  const borders: TableBorders = {};
-
-  const top = parseBorderSpec(findChild(bordersElement, 'w', 'top'));
-  if (top) borders.top = top;
-
-  const bottom = parseBorderSpec(findChild(bordersElement, 'w', 'bottom'));
-  if (bottom) borders.bottom = bottom;
-
-  const left = parseBorderSpec(
-    findChild(bordersElement, 'w', 'left') ?? findChild(bordersElement, 'w', 'start')
-  );
-  if (left) borders.left = left;
-
-  const right = parseBorderSpec(
-    findChild(bordersElement, 'w', 'right') ?? findChild(bordersElement, 'w', 'end')
-  );
-  if (right) borders.right = right;
-
-  const insideH = parseBorderSpec(findChild(bordersElement, 'w', 'insideH'));
-  if (insideH) borders.insideH = insideH;
-
-  const insideV = parseBorderSpec(findChild(bordersElement, 'w', 'insideV'));
-  if (insideV) borders.insideV = insideV;
-
-  // Return undefined if no borders were parsed
-  if (Object.keys(borders).length === 0) return undefined;
-
-  return borders;
-}
+// Border parsing is shared across the table/paragraph/section/style parsers.
+// Re-exported here so existing import sites stay stable.
+export { parseBorderSpec, parseTableBorders } from '../borderParser';
 
 // ============================================================================
 // CELL MARGINS PARSING

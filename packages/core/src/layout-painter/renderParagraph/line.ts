@@ -12,6 +12,7 @@ import type {
   MeasuredLine,
   Run,
   ImageRun,
+  LineBreakRun,
   TabStop,
 } from '../../layout-engine/types';
 import type { RenderContext } from '../renderPage';
@@ -37,6 +38,7 @@ import {
   renderLineBreakRun,
   renderFieldRun,
   renderRun,
+  applyPmPositions,
 } from './runs';
 
 /**
@@ -115,7 +117,9 @@ interface RenderLineOptions {
 
 type RenderLineAlignment = 'left' | 'center' | 'right' | 'justify' | 'start' | 'end' | undefined;
 
-function normalizeLineAlignment(align: RenderLineAlignment): 'left' | 'center' | 'right' | 'justify' | undefined {
+function normalizeLineAlignment(
+  align: RenderLineAlignment
+): 'left' | 'center' | 'right' | 'justify' | undefined {
   if (align === 'start') return 'left';
   if (align === 'end') return 'right';
   return align;
@@ -128,6 +132,22 @@ function normalizeLineAlignment(align: RenderLineAlignment): 'left' | 'center' |
 function alignToJustifyContent(align: string | undefined): string {
   const normalized = normalizeLineAlignment(align as RenderLineAlignment);
   return normalized === 'center' ? 'center' : normalized === 'right' ? 'flex-end' : 'flex-start';
+}
+
+/**
+ * Horizontal alignment for an image alone on a line. An anchored image
+ * (`wp:positionH`, i.e. `position.horizontal` present) is positioned by its OWN
+ * alignment, independent of the paragraph's `jc` — defaulting to left like Word,
+ * NOT the paragraph alignment (which would wrongly center a left-anchored header
+ * logo whose paragraph happens to be centered). An inline image with no anchor
+ * follows the paragraph alignment. (issue #777)
+ */
+export function resolveImageLineAlign(
+  imageRun: ImageRun,
+  paragraphAlignment: 'left' | 'center' | 'right' | 'justify' | undefined
+): string | undefined {
+  const horizontal = imageRun.position?.horizontal;
+  return horizontal ? (horizontal.align ?? 'left') : paragraphAlignment;
 }
 
 /**
@@ -328,8 +348,7 @@ export function renderLine(
   // anchored layout.
   if (runsForLine.length === 1 && isImageRun(runsForLine[0])) {
     const imageRun = runsForLine[0] as ImageRun;
-    const imageAlign = imageRun.position?.horizontal?.align;
-    const effectiveAlign = imageAlign ?? effectiveAlignment;
+    const effectiveAlign = resolveImageLineAlign(imageRun, effectiveAlignment);
     lineEl.style.display = 'flex';
     lineEl.style.alignItems = 'center';
     lineEl.style.justifyContent = alignToJustifyContent(effectiveAlign);
@@ -610,6 +629,24 @@ export function renderLine(
       // Fallback for unknown run types
       const runEl = renderRun(run, doc, options?.context);
       lineEl.appendChild(runEl);
+    }
+  }
+
+  // A line whose only run is a line break (a blank row produced by consecutive
+  // `<w:br/>`) has no positioned text span — its PM position lives on the `<br>`,
+  // which the click/caret/visual-line resolvers don't read (they look for
+  // `span[data-pm-start]`). Without a positioned span, those resolvers fall back
+  // to the paragraph's start, so clicks, the caret, and arrow navigation all
+  // collapse onto the first line of the paragraph. Emit a zero-width positioned
+  // marker carrying the break's position so the existing resolvers can locate it.
+  if (!lineEl.querySelector('span[data-pm-start][data-pm-end]')) {
+    const lineBreakRun = runsForLine.find(isLineBreakRun) as LineBreakRun | undefined;
+    if (lineBreakRun?.pmStart !== undefined) {
+      const marker = doc.createElement('span');
+      marker.className = PARAGRAPH_CLASS_NAMES.run;
+      applyPmPositions(marker, lineBreakRun.pmStart, lineBreakRun.pmStart);
+      marker.textContent = '\u200B';
+      lineEl.insertBefore(marker, lineEl.firstChild);
     }
   }
 

@@ -30,12 +30,14 @@ import {
 import {
   toFlowBlocks,
   computePerBlockWidths,
+  demoteBlockLikeFloatingTables,
   collectFootnoteRefs,
   convertHeaderFooterToContent,
   convertHeaderFooterPmDocToContent,
   buildFootnoteContentMap,
   buildFootnoteRenderItems,
   stabilizeFootnoteLayout,
+  FOOTNOTE_COLUMN_GAP_PX,
   extendMarginsForHeaderFooter,
   twipsToPixels,
   type FloatPageGeometry,
@@ -108,6 +110,43 @@ export interface LayoutComputation {
 }
 
 /**
+ * Resolve the document-level footnote column layout from `w15:footnoteColumns`.
+ *
+ * Footnotes paint N-up when any section opts into multiple footnote columns.
+ * In a mixed-section document we take the first multi-column section's count
+ * and full content width (a documented limitation — per-section footnote
+ * column counts are a follow-up); the overwhelmingly common case is a single
+ * uniform setting. Returns `{ columns: 1, columnWidth: fallback }` — i.e. the
+ * unchanged single-column path — when no section opts in.
+ */
+function resolveFootnoteColumnLayout(
+  document: Document | null,
+  fallbackColumnWidth: number
+): { columns: number; columnWidth: number } {
+  const body = document?.package?.document;
+  const sectionProps: Array<SectionProperties | null | undefined> = body
+    ? [...(body.sections ?? []).map((s) => s.properties), body.finalSectionProperties]
+    : [];
+  const fnSection = sectionProps.find((p) => (p?.footnoteColumns ?? 1) > 1);
+  if (!fnSection?.footnoteColumns) {
+    return { columns: 1, columnWidth: fallbackColumnWidth };
+  }
+
+  const columns = fnSection.footnoteColumns;
+  // Footnote columns span the section's full content width, independent of the
+  // body's w:cols. Mirror the painter's width math so a footnote measured here
+  // wraps exactly as it paints.
+  const sectionContentWidthPx =
+    fnSection.pageWidth != null
+      ? twipsToPixels(
+          fnSection.pageWidth - (fnSection.marginLeft ?? 1440) - (fnSection.marginRight ?? 1440)
+        )
+      : fallbackColumnWidth;
+  const columnWidth = (sectionContentWidthPx - (columns - 1) * FOOTNOTE_COLUMN_GAP_PX) / columns;
+  return { columns, columnWidth: Math.max(1, columnWidth) };
+}
+
+/**
  * Run the pure layout compute pass (the 6 steps in this file's header), lifted
  * verbatim from `useLayoutPipeline`. The adapter performs the DOM paint
  * (`renderPages`), scroll-restore, `painter:painted`, and state writeback with
@@ -147,6 +186,18 @@ export function computeLayout(inputs: ComputeLayoutInputs): LayoutComputation {
     { pageSize, margins, columns },
     { pageSize: finalPageSize, margins: finalMargins, columns: finalColumns }
   );
+
+  // Step 1.5: Demote full-width "floating" tables to inline. A positioned table
+  // that leaves no room for text to wrap beside it (a common full-width contract
+  // form table) is block-like in Word/Google Docs — it paginates across pages.
+  // Our floating path instead paints it as one overflowing fragment AND makes
+  // the next paragraph skip past the whole table height (a wrap zone), stranding
+  // it off-page. Clearing `floating` here — before measure and layout — routes
+  // it through `layoutTable` (which breaks rows across pages) and suppresses the
+  // wrap zone. Purely a layout transform on the ephemeral FlowBlocks; the PM doc
+  // and the saved DOCX keep the original floating table.
+  demoteBlockLikeFloatingTables(blocks, blockWidths, contentWidth);
+
   const measures = measureBlocks(
     blocks,
     blockWidths,
@@ -229,10 +280,15 @@ export function computeLayout(inputs: ComputeLayoutInputs): LayoutComputation {
 
   if (hasFootnotes) {
     const pass1Layout = layoutDocument(blocks, measures, layoutOpts);
+    // w15:footnoteColumns: when a section lays its footnotes out in multiple
+    // columns, measure each footnote at the column width (so it wraps the way
+    // it will paint) rather than the full content width.
+    const { columns: footnoteColumns, columnWidth: footnoteColumnWidth } =
+      resolveFootnoteColumnLayout(document, contentWidth);
     footnoteContentMap = buildFootnoteContentMap(
       document!.package.footnotes!,
       footnoteRefs,
-      contentWidth,
+      footnoteColumnWidth,
       {
         styles: styles ?? undefined,
         theme: theme ?? null,
@@ -247,6 +303,7 @@ export function computeLayout(inputs: ComputeLayoutInputs): LayoutComputation {
       footnoteRefs,
       footnoteContentMap,
       initialLayout: pass1Layout,
+      footnoteColumns,
     });
     layout = stabilized.layout;
     pageFootnoteMap = stabilized.pageFootnoteMap;

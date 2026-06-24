@@ -72,6 +72,10 @@ const schema = new Schema({
     emphasisMark: {
       attrs: { type: { default: 'dot' } },
     },
+    footnoteRef: {
+      attrs: { id: { default: 0 }, noteType: { default: 'footnote' } },
+    },
+    superscript: {},
     characterSpacing: {
       attrs: {
         spacing: { default: null },
@@ -177,6 +181,39 @@ describe('toFlowBlocks — run-level marks reach RunFormatting (#410)', () => {
     const doc = buildSingleRunDoc('hi', 'emphasisMark', { type: 'unknownXyz' });
     const blocks = toFlowBlocks(doc, {});
     expect(firstRun(blocks).emphasisMark).toBe('dot');
+  });
+
+  test('footnoteRef mark alone does NOT imply superscript (Word parity)', () => {
+    // A bare footnote anchor (no superscript mark / no rStyle on the run) is
+    // NOT raised in Word — Word's superscript comes only from the
+    // FootnoteReference char style's w:vertAlign. The bridge must not
+    // "correct" an unstyled anchor; superscript is driven solely by the
+    // `superscript` mark (set from the run's vertAlign or the style chain).
+    const doc = buildSingleRunDoc('1', 'footnoteRef', { id: 5, noteType: 'footnote' });
+    const run = firstRun(toFlowBlocks(doc, {}));
+    expect(run.footnoteRefId).toBe(5);
+    expect(run.superscript).toBeFalsy();
+  });
+
+  test('endnoteRef mark alone does NOT imply superscript (Word parity)', () => {
+    const doc = buildSingleRunDoc('1', 'footnoteRef', { id: 3, noteType: 'endnote' });
+    const run = firstRun(toFlowBlocks(doc, {}));
+    expect(run.endnoteRefId).toBe(3);
+    expect(run.superscript).toBeFalsy();
+  });
+
+  test('footnoteRef + superscript mark IS raised (styled anchor, the common case)', () => {
+    // The normal case: the anchor run carries the FootnoteReference char style,
+    // which the conversion resolves into a `superscript` mark. Both marks reach
+    // the bridge — the run is raised, matching Word.
+    const node = schema.text('1', [
+      schema.marks.footnoteRef.create({ id: 7, noteType: 'footnote' }),
+      schema.marks.superscript.create(),
+    ]);
+    const doc = schema.node('doc', null, [schema.node('paragraph', null, [node])]);
+    const run = firstRun(toFlowBlocks(doc, {}));
+    expect(run.footnoteRefId).toBe(7);
+    expect(run.superscript).toBe(true);
   });
 });
 

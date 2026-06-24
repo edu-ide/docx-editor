@@ -47,7 +47,7 @@ export interface DomSelectionRect {
 }
 
 // @public (undocumented)
-export function getCaretPositionFromDom(container: HTMLElement, pmPos: number, overlayRect: DOMRect): DomCaretPosition | null;
+export function getCaretPositionFromDom(container: HTMLElement, pmPos: number, overlayRect: DOMRect, zoom?: number): DomCaretPosition | null;
 
 // @public (undocumented)
 export function getSelectionRectsFromDom(container: HTMLElement, from: number, to: number, overlayRect: DOMRect): DomSelectionRect[];

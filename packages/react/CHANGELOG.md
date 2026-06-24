@@ -1,5 +1,219 @@
 # @eigenpal/docx-js-editor
 
+## 1.10.0
+
+### Minor Changes
+
+- bca00eb: Footnotes are now editable in the live editor. Click into a footnote to place a caret, type, select, and delete just like body text; in suggesting mode footnote edits are tracked changes. Edits round-trip back into the Word document. Available in both the React and Vue adapters.
+
+### Patch Changes
+
+- 53ede3c: Anchor the hidden ProseMirror caret to the painted caret so CJK IME candidate windows appear near the visible insertion point.
+- Updated dependencies [00c015b]
+- Updated dependencies [a631be1]
+- Updated dependencies [7a03c16]
+- Updated dependencies [c1871b5]
+- Updated dependencies [18a686d]
+- Updated dependencies [dc3d694]
+- Updated dependencies [7a94b49]
+- Updated dependencies [53ede3c]
+- Updated dependencies [5e7120b]
+  - @eigenpal/docx-editor-core@1.10.0
+  - @eigenpal/docx-editor-agents@1.10.0
+  - @eigenpal/docx-editor-i18n@1.10.0
+
+## 1.9.0
+
+### Patch Changes
+
+- f61435b: Harden `openPrintWindow` to build the print window via DOM APIs instead of `document.write`, so a crafted document title cannot break out into executable markup. The framework-agnostic print helpers are now exported from `@eigenpal/docx-editor-core` as the single source of truth, and the React package re-exports them unchanged.
+- 791b132: Remove two potential slow-input denial-of-service paths in the React adapter. The data URL MIME parser now uses index math instead of a backtracking regex, and the toolbar test-id helper no longer scans across unmatched parentheses, so neither degrades on long crafted input.
+- Updated dependencies [4b47daf]
+- Updated dependencies [9144b69]
+- Updated dependencies [826aa32]
+- Updated dependencies [826aa32]
+- Updated dependencies [12c1f87]
+- Updated dependencies [7839ee9]
+- Updated dependencies [826aa32]
+- Updated dependencies [9454c9a]
+- Updated dependencies [f61435b]
+- Updated dependencies [28876a2]
+  - @eigenpal/docx-editor-core@1.9.0
+  - @eigenpal/docx-editor-i18n@1.9.0
+  - @eigenpal/docx-editor-agents@1.9.0
+
+## 1.8.3
+
+### Patch Changes
+
+- 5ce3faa: Escape embedded font-family names before interpolating into the injected `@font-face` stylesheet, and build the print window via DOM APIs instead of `document.write` string concatenation. Prevents CSS injection and print-time XSS from crafted DOCX font names.
+- Updated dependencies [88a7650]
+- Updated dependencies [5ce3faa]
+- Updated dependencies [5eb0a43]
+- Updated dependencies [673e917]
+- Updated dependencies [74e36ef]
+- Updated dependencies [447d5b0]
+  - @eigenpal/docx-editor-core@1.8.3
+  - @eigenpal/docx-editor-agents@1.8.3
+  - @eigenpal/docx-editor-i18n@1.8.3
+
+## 1.8.2
+
+### Patch Changes
+
+- 7811a73: Fix caret size and table insert button position when the editor is zoomed. Both are painted inside the zoomed page container, so their geometry is now normalized by the zoom factor instead of being scaled twice.
+
+  Fixes #928
+
+- Updated dependencies [4f183b3]
+- Updated dependencies [0c233db]
+- Updated dependencies [7811a73]
+  - @eigenpal/docx-editor-core@1.8.2
+  - @eigenpal/docx-editor-agents@1.8.2
+  - @eigenpal/docx-editor-i18n@1.8.2
+
+## 1.8.1
+
+### Patch Changes
+
+- Updated dependencies [6047f84]
+  - @eigenpal/docx-editor-core@1.8.1
+  - @eigenpal/docx-editor-agents@1.8.1
+  - @eigenpal/docx-editor-i18n@1.8.1
+
+## 1.8.0
+
+### Patch Changes
+
+- Updated dependencies [274e45f]
+- Updated dependencies [a1f4537]
+- Updated dependencies [27740e1]
+- Updated dependencies [114e83e]
+  - @eigenpal/docx-editor-agents@1.8.0
+  - @eigenpal/docx-editor-core@1.8.0
+  - @eigenpal/docx-editor-i18n@1.8.0
+
+## 1.7.0
+
+### Minor Changes
+
+- c0923f7: Add `commentsSidebarOpen` and `onCommentsSidebarOpenChange` to `<DocxEditor>` for controlling the comments sidebar's visibility. When `commentsSidebarOpen` is set it becomes the source of truth; `onCommentsSidebarOpenChange` (React prop / Vue `comments-sidebar-open-change` event) fires whenever the editor wants to open or close it. Lets consumers that hide or replace the toolbar (`showToolbar={false}`) toggle the sidebar themselves, or open it programmatically. Omit both to keep the default self-managed behavior.
+- 6f51f47: Add `onOpen` and `showFileOpen` props so React consumers can route File > Open through their own import pipeline or hide the built-in Open action.
+- e0604af: Add a `showHelpMenu` prop to `<DocxEditor>` (default `true`) for hiding the Help menu in the menu bar. It is threaded through `ToolbarProps`, so the compound `<EditorToolbar.MenuBar />` API respects it too. Consumers that want File/Format/Insert without the Help menu can now pass `showHelpMenu={false}` instead of reaching for CSS overrides.
+
+### Patch Changes
+
+- 2bd49c2: Fix React toolbar toggle buttons losing their color on hover. The active (selected) button now keeps its dark fill on hover instead of showing a white icon over a near-transparent background, and inactive buttons get a visible hover background. These states are now owned by editor.css tokens rather than Tailwind utilities, which did not dedupe (cn is clsx-only).
+- 25dbfe9: Fix severe typing and undo/redo latency when editing large documents that contain many comments and tracked changes. Sidebar anchor positions were resolved with a full page scan per comment/suggestion, so an edit near the start of a long review document spent seconds remapping every anchor. The scan now resumes from the previously matched page, cutting start-of-document keystroke latency from seconds to well under the responsiveness budget. Fixes #896.
+- 421faf1: Support tracked changes (Suggesting mode) in headers and footers for both React and Vue components, including card positioning in the sidebar and command support.
+- edd0bc2: Add themeable document-scrollbar CSS variables and apply the styled scrollbar to both React and Vue document scroll containers.
+- Updated dependencies [ed04d10]
+- Updated dependencies [35b5cee]
+- Updated dependencies [186598a]
+- Updated dependencies [2dedf30]
+- Updated dependencies [dfd316f]
+- Updated dependencies [6b1897a]
+- Updated dependencies [8e95d60]
+- Updated dependencies [f2c9f9f]
+- Updated dependencies [fc95983]
+- Updated dependencies [edd0bc2]
+- Updated dependencies [d4a27d4]
+  - @eigenpal/docx-editor-core@1.7.0
+  - @eigenpal/docx-editor-agents@1.7.0
+  - @eigenpal/docx-editor-i18n@1.7.0
+
+## 1.6.2
+
+### Patch Changes
+
+- 768b10e: Redesign the document outline toggle as a filled circular button in the left gutter (instead of a bare icon), tighten the outline panel's indentation, and keep the toggle and panel clear of the vertical ruler and of landscape pages.
+- Updated dependencies [a8bce7a]
+- Updated dependencies [768b10e]
+  - @eigenpal/docx-editor-core@1.6.2
+  - @eigenpal/docx-editor-agents@1.6.2
+  - @eigenpal/docx-editor-i18n@1.6.2
+
+## 1.6.1
+
+### Patch Changes
+
+- Updated dependencies [7c1d1ff]
+- Updated dependencies [c25ba18]
+- Updated dependencies [26a048f]
+- Updated dependencies [74ae87d]
+- Updated dependencies [a89af59]
+- Updated dependencies [6550426]
+- Updated dependencies [4a75c5e]
+  - @eigenpal/docx-editor-agents@1.6.1
+  - @eigenpal/docx-editor-i18n@1.6.1
+  - @eigenpal/docx-editor-core@1.6.1
+
+## 1.6.0
+
+### Minor Changes
+
+- a6a2dd0: Replace the Insert menu's "Page break" item with a "Break" submenu offering page break, section break (next page), and section break (continuous).
+- 5509418: Add a `colorMode` prop (`'light' | 'dark' | 'system'`) for native dark mode. Dark mode re-themes the editor chrome through the shared design tokens and renders the document canvas like Word's dark view: a dark page with light text where authored colours are lightness-inverted (hue preserved) for legibility. It is a display transform only; the saved DOCX is unchanged. `'system'` follows the OS `prefers-color-scheme`.
+- fae2765: Add a `watermarkPresets` prop to customize the text-watermark dialog's preset list. Pass an array of phrases to replace the built-in MS Word defaults (CONFIDENTIAL, DRAFT, …), or an empty array to hide the preset dropdown. Available in both React and Vue.
+
+### Patch Changes
+
+- 3a4a03f: Fix toolbar dropdowns closing when you scroll inside them. Scrolling the font size picker's preset list now keeps the dropdown open instead of dismissing it. Fixes #808.
+- bbda628: Apply selected font picker options by their primary family name so CSS fallback stacks like Lato, sans-serif do not get stored as document font names.
+- 7fe09f0: Share the paragraph-style-picker preview logic between the React and Vue toolbars. The filter/sort and per-style preview CSS now live once in `@eigenpal/docx-editor-core/utils/stylePreview` (`resolveParagraphStyleOptions` + `getStylePreviewProps`), which both adapters call, so the style dropdown can no longer drift between them. Also fixes a Vue toolbar bug where typing a font size and then clicking a preset could re-commit the typed value over the preset.
+- 7fe09f0: Align the React and Vue toolbar controls. The Vue font-size control is now an editable, clearly-bordered input box (matching React) instead of a plain button, and React's zoom control is now a − / + stepper around the level dropdown (matching Vue), so both adapters present the same editable zoom and font-size controls.
+- 7fe09f0: Unify the editor UI colors onto one CSS-variable token palette. The canonical chrome stylesheet now lives in `@eigenpal/docx-editor-core` (`packages/core/src/styles/editor.css`) and both adapters import it, so React and Vue can never drift. Component styles reference `--doc-*` tokens instead of hardcoded colors, and the shadcn HSL tokens are aligned to the same palette and support opacity modifiers. A commented `.ep-root.dark` scaffold is included as the structure for a future dark theme (no dark values are shipped yet — adding the `dark` class has no visual effect until they are filled in). Light-mode appearance is unchanged apart from minor consolidation of near-duplicate grays/blues. As part of this, the Vue full-screen loading overlay now uses the same dark backdrop with light text as React (previously a light backdrop), and the Vue editing-mode chip and toolbar dropdown elevation share React's hover/shadow tokens. The Vue toolbar buttons, dropdown triggers, menu items, and steppers now reference the same shadcn `foreground`/`muted-foreground`/`muted`/`border` tokens React uses (previously the `--doc-*` family), so the toolbar matches React in both light and dark mode; the dropdown triggers also render at React's normal weight (they previously looked bold), and the selected menu item uses React's grey highlight instead of an indigo tint.
+- Updated dependencies [a6a2dd0]
+- Updated dependencies [931931a]
+- Updated dependencies [fa3383b]
+- Updated dependencies [32c5382]
+- Updated dependencies [7fe09f0]
+- Updated dependencies [7fe09f0]
+- Updated dependencies [f50a3c7]
+- Updated dependencies [7fe09f0]
+  - @eigenpal/docx-editor-agents@1.6.0
+  - @eigenpal/docx-editor-core@1.6.0
+  - @eigenpal/docx-editor-i18n@1.6.0
+
+## 1.5.0
+
+### Minor Changes
+
+- 19a25eb: Add `scrollToCommentId`, `scrollToChangeId`, and `highlightRange` methods to `DocxEditorRef` on both the React and Vue adapters, for revealing a location in the editor. Each scrolls the comment, tracked change, or position range into view and selects it so the selection overlay highlights the spot. `scrollToCommentId` and `scrollToChangeId` return `false` when the id no longer resolves, so callers can surface a "location no longer exists" affordance instead of silently doing nothing.
+
+### Patch Changes
+
+- ab38192: Support clickable inline Word checkbox content controls
+- ca275f9: Fix the document outline toggle rendering above the title bar File menu. The outline button now uses the shared `Z_INDEX.outline` layer (40) instead of 50, and the toolbar shell is raised to `Z_INDEX.toolbar` (100) so title-bar dropdowns stay on top. Vue parity: outline toggle at 40, toolbar shell at 100.
+- Updated dependencies [7d02ec1]
+- Updated dependencies [04130ef]
+- Updated dependencies [ab38192]
+- Updated dependencies [5cdfa5c]
+- Updated dependencies [335ad6c]
+- Updated dependencies [c5a4b1e]
+- Updated dependencies [c4fd221]
+- Updated dependencies [ca005c5]
+- Updated dependencies [7d6daeb]
+- Updated dependencies [5cdfa5c]
+- Updated dependencies [44161e5]
+  - @eigenpal/docx-editor-core@1.5.0
+  - @eigenpal/docx-editor-agents@1.5.0
+  - @eigenpal/docx-editor-i18n@1.5.0
+
+## 1.4.0
+
+### Minor Changes
+
+- 1ab8b30: Image resize: drag a corner handle to scale (keeping aspect ratio) or an edge handle to stretch one side (width or height) and deliberately change the aspect ratio. Selection handles are now Word-style white dots. Inserted images keep their aspect ratio — a wide image dropped into a table cell or a narrow column now scales down to fit while staying in proportion, instead of squashing or overflowing the page. Fixes #266.
+
+### Patch Changes
+
+- Updated dependencies [28a521a]
+- Updated dependencies [1ab8b30]
+  - @eigenpal/docx-editor-core@1.4.0
+  - @eigenpal/docx-editor-agents@1.4.0
+  - @eigenpal/docx-editor-i18n@1.4.0
+
 ## 1.3.3
 
 ### Patch Changes

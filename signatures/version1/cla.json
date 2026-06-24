@@ -125,6 +125,84 @@
       "id": 245037279,
       "signed_at": "2026-06-09T21:50:56Z",
       "pull_request_no": 752
+    },
+    {
+      "name": "raphaelsebb",
+      "id": 21245766,
+      "signed_at": "2026-06-13T09:22:29Z",
+      "pull_request_no": 788
+    },
+    {
+      "name": "devmc12",
+      "id": 28534333,
+      "signed_at": "2026-06-13T11:36:07Z",
+      "pull_request_no": 789
+    },
+    {
+      "name": "mrofisr",
+      "id": 31870041,
+      "signed_at": "2026-06-15T16:20:11Z",
+      "pull_request_no": 824
+    },
+    {
+      "name": "sorenlouv",
+      "id": 209966,
+      "signed_at": "2026-06-15T21:17:08Z",
+      "pull_request_no": 821
+    },
+    {
+      "name": "aldrinjenson",
+      "id": 53407417,
+      "signed_at": "2026-06-15T21:49:16Z",
+      "pull_request_no": 828
+    },
+    {
+      "name": "sathinator-afk",
+      "id": 286852155,
+      "signed_at": "2026-06-16T08:31:00Z",
+      "pull_request_no": 837
+    },
+    {
+      "name": "khalifmv",
+      "id": 49638000,
+      "signed_at": "2026-06-16T11:15:17Z",
+      "pull_request_no": 840
+    },
+    {
+      "name": "mchassara",
+      "id": 20279702,
+      "signed_at": "2026-06-18T13:03:02Z",
+      "pull_request_no": 907
+    },
+    {
+      "name": "lowol",
+      "id": 528566,
+      "signed_at": "2026-06-19T12:46:52Z",
+      "pull_request_no": 938
+    },
+    {
+      "name": "samcorcos",
+      "id": 2626231,
+      "signed_at": "2026-06-19T15:50:26Z",
+      "pull_request_no": 942
+    },
+    {
+      "name": "youdie006",
+      "id": 169331997,
+      "signed_at": "2026-06-20T01:56:34Z",
+      "pull_request_no": 950
+    },
+    {
+      "name": "xcrong",
+      "id": 46434477,
+      "signed_at": "2026-06-22T15:06:58Z",
+      "pull_request_no": 980
+    },
+    {
+      "name": "108signals",
+      "id": 23108658,
+      "signed_at": "2026-06-24T04:35:42Z",
+      "pull_request_no": 1008
     }
   ]
 }

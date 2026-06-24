@@ -181,7 +181,7 @@ export function renderFragment(fragment: Fragment, context: RenderContext, optio
 export function renderImageFragment(fragment: ImageFragment, block: ImageBlock, _measure: ImageMeasure, _context: RenderContext, options?: RenderImageFragmentOptions): HTMLElement;
 
 // @public
-export function renderLine(block: ParagraphBlock, line: MeasuredLine, alignment: 'left' | 'center' | 'right' | 'justify' | undefined, doc: Document, options?: RenderLineOptions): HTMLElement;
+export function renderLine(block: ParagraphBlock, line: MeasuredLine, alignment: RenderLineAlignment, doc: Document, options?: RenderLineOptions): HTMLElement;
 
 // @public
 export function renderPage(page: Page, context: RenderContext, options?: RenderPageOptions): HTMLElement;

@@ -10,9 +10,12 @@
         :document-buffer="documentBuffer"
         :document="currentDocument"
         :show-toolbar="true"
+        :show-help-menu="showHelpMenu"
         :document-name="fileName"
         :fonts="customFonts"
+        :watermark-presets="['SAMPLE', 'DEMO ONLY', 'PREVIEW', 'NOT FOR DISTRIBUTION']"
         :i18n="editorLocale"
+        :color-mode="colorMode"
         @change="handleDocumentChange"
         @error="handleError"
         @ready="handleReady"
@@ -20,6 +23,7 @@
       >
         <template #title-bar-left>
           <div class="title-bar-left-group">
+            <BrandLogo />
             <span class="switcher" role="tablist" aria-label="Adapter">
               <a :href="reactHref" role="tab" :aria-selected="false" class="pill">React</a>
               <a :href="vueHref" role="tab" :aria-selected="true" class="pill active">Vue</a>
@@ -28,6 +32,40 @@
           </div>
         </template>
         <template #title-bar-right>
+          <div
+            class="theme-toggle"
+            role="radiogroup"
+            aria-label="Color theme"
+            @mousedown.stop
+          >
+            <button
+              type="button"
+              role="radio"
+              class="theme-toggle__opt"
+              :class="{ 'is-selected': colorMode === 'light' }"
+              :aria-checked="colorMode === 'light'"
+              title="Light mode"
+              @click="colorMode = 'light'"
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="4" />
+                <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              role="radio"
+              class="theme-toggle__opt"
+              :class="{ 'is-selected': colorMode === 'dark' }"
+              :aria-checked="colorMode === 'dark'"
+              title="Dark mode"
+              @click="colorMode = 'dark'"
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
+              </svg>
+            </button>
+          </div>
           <label class="btn btn-primary">
             <input
               type="file"
@@ -70,6 +108,7 @@ import { computed, ref, onBeforeUnmount, onMounted } from 'vue';
 import { DocxEditor, type DocxEditorRef } from '@eigenpal/docx-editor-vue';
 import { de as deLocale } from '@eigenpal/docx-editor-i18n';
 import ExampleSwitcher from '../../shared/ExampleSwitcher.vue';
+import BrandLogo from '../../shared/BrandLogo.vue';
 import { createEmptyDocument, findStartPosForParaId } from '@eigenpal/docx-editor-core';
 import type { Document } from '@eigenpal/docx-editor-core/types/document';
 import { setSuggestionMode } from '@eigenpal/docx-editor-core/prosemirror/plugins';
@@ -115,8 +154,9 @@ const vueHref = import.meta.env.DEV ? 'http://localhost:5174/' : '/vue/';
 const editorRef = ref<DocxEditorRef | null>(null);
 const documentBuffer = ref<ArrayBuffer | null>(null);
 const currentDocument = ref<Document | null>(null);
-const fileName = ref('docx-editor-demo.docx');
+const fileName = ref('sample.docx');
 const status = ref('');
+const colorMode = ref<'light' | 'dark'>('light');
 
 // E2E hook: ?customFonts=1 wires a custom-font registration against the
 // bundled fixture so the Vue Playwright suite can verify the `fonts` prop.
@@ -147,6 +187,12 @@ const showAgentPanel = computed(() => {
   const params = new URLSearchParams(window.location.search);
   if (params.get('agentPanel') === '1' || params.has('agentTimeline')) return true;
   return import.meta.env.VITE_DOCX_EDITOR_AGENT_PANEL === '1';
+});
+
+// E2E hook: `?hideHelpMenu=1` hides the Help menu (parity with the React prop).
+const showHelpMenu = computed(() => {
+  if (typeof window === 'undefined') return true;
+  return new URLSearchParams(window.location.search).get('hideHelpMenu') !== '1';
 });
 
 // AgentTimeline fixture for E2E parity. Mirrors examples/vite App.tsx so a
@@ -280,6 +326,17 @@ onMounted(async () => {
         if (!view) return;
         view.dispatch(view.state.tr.setSelection(view.state.selection.constructor.near(view.state.doc.resolve(pmPos))));
       },
+      getDocSize: () => {
+        const state = (editorRef.value?.getEditorRef() as any)?.getState?.();
+        return state?.doc.content.size ?? null;
+      },
+      highlightRange: (from: number, to: number) => {
+        editorRef.value?.highlightRange(from, to);
+      },
+      scrollToCommentId: (commentId: number) =>
+        editorRef.value?.scrollToCommentId(commentId) ?? false,
+      scrollToChangeId: (revisionId: number) =>
+        editorRef.value?.scrollToChangeId(revisionId) ?? false,
       scrollToPage: (pageNumber: number) => {
         document
           .querySelector<HTMLElement>(`.paged-editor__page[data-page-number="${pageNumber}"]`)
@@ -548,10 +605,10 @@ onMounted(async () => {
   }
 
   try {
-    const res = await fetch(`${import.meta.env.BASE_URL}docx-editor-demo.docx`);
+    const res = await fetch(`${import.meta.env.BASE_URL}sample.docx`);
     const buffer = await res.arrayBuffer();
     documentBuffer.value = buffer;
-    fileName.value = 'docx-editor-demo.docx';
+    fileName.value = 'sample.docx';
   } catch {
     currentDocument.value = createEmptyDocument();
     fileName.value = 'Untitled.docx';
@@ -674,17 +731,17 @@ function handleReady() {
 
 .switcher {
   display: inline-flex;
-  background: #f1f5f9;
+  background: var(--doc-bg-subtle);
   padding: 3px;
   border-radius: 8px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--doc-border);
 }
 
 .pill {
   padding: 4px 12px;
   font-size: 12px;
   font-weight: 500;
-  color: #64748b;
+  color: var(--doc-text-muted);
   text-decoration: none;
   border-radius: 5px;
   transition:
@@ -693,9 +750,9 @@ function handleReady() {
 }
 
 .pill.active {
-  background: #fff;
-  color: #0f172a;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+  background: var(--doc-surface);
+  color: var(--doc-text);
+  box-shadow: 0 1px 2px var(--doc-shadow-subtle);
 }
 
 .header-left {
@@ -739,24 +796,55 @@ function handleReady() {
 
 .btn {
   padding: 6px 12px;
-  background: #fff;
-  border: 1px solid #e2e8f0;
+  background: var(--doc-surface);
+  border: 1px solid var(--doc-border);
   border-radius: 6px;
   cursor: pointer;
   font-size: 13px;
   font-weight: 500;
-  color: #334155;
+  color: var(--doc-text);
   white-space: nowrap;
 }
 
+/* Fumadocs-style segmented light/dark toggle (mirrors the React demo). */
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 9999px;
+  border: 1px solid var(--doc-border);
+  background: var(--doc-bg-subtle);
+}
+.theme-toggle__opt {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 9999px;
+  cursor: pointer;
+  background: transparent;
+  color: var(--doc-text-subtle);
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+.theme-toggle__opt.is-selected {
+  background: var(--doc-surface);
+  color: var(--doc-text);
+  box-shadow: 0 1px 2px var(--doc-shadow-subtle);
+}
+
 .btn:hover {
-  background: #f1f5f9;
+  background: var(--doc-bg-hover);
 }
 
 .btn-primary {
-  background: #0f172a;
-  color: #fff;
-  border-color: #0f172a;
+  background: var(--doc-text);
+  color: var(--doc-on-primary);
+  border-color: var(--doc-text);
   cursor: pointer;
 }
 
@@ -770,9 +858,9 @@ function handleReady() {
 
 .status {
   font-size: 12px;
-  color: #64748b;
+  color: var(--doc-text-muted);
   padding: 4px 8px;
-  background: #f1f5f9;
+  background: var(--doc-bg-subtle);
   border-radius: 4px;
 }
 

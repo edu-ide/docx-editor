@@ -27,8 +27,6 @@ import type {
   VerticalAlign,
   LineNumberRestart,
   Column,
-  BorderSpec,
-  ColorValue,
   ThemeColorSlot,
   RelationshipMap,
   HeaderReference,
@@ -44,91 +42,12 @@ import {
   type XmlElement,
 } from './xmlParser';
 import { parseHeaderReference, parseFooterReference } from './headerFooterParser';
+import { parseBorderSpec } from './borderParser';
 import { parseFootnoteProperties, parseEndnoteProperties } from './footnoteParser';
 
 // ============================================================================
 // HELPER PARSERS
 // ============================================================================
-
-/**
- * Parse a color element/attribute for page borders/background
- */
-function parseColorValue(
-  colorStr: string | null,
-  themeColor: string | null,
-  themeTint: string | null,
-  themeShade: string | null
-): ColorValue | undefined {
-  if (!colorStr && !themeColor) return undefined;
-
-  const color: ColorValue = {};
-
-  if (colorStr && colorStr !== 'auto') {
-    color.rgb = colorStr;
-  } else if (colorStr === 'auto') {
-    color.auto = true;
-  }
-
-  if (themeColor) {
-    color.themeColor = themeColor as ThemeColorSlot;
-  }
-  if (themeTint) {
-    color.themeTint = themeTint;
-  }
-  if (themeShade) {
-    color.themeShade = themeShade;
-  }
-
-  return Object.keys(color).length > 0 ? color : undefined;
-}
-
-/**
- * Parse a border element for page borders
- */
-function parseBorderSpec(element: XmlElement | null): BorderSpec | undefined {
-  if (!element) return undefined;
-
-  const styleStr = getAttribute(element, 'w', 'val') ?? 'none';
-  const style = styleStr as BorderSpec['style'];
-
-  const border: BorderSpec = { style };
-
-  // Size in eighths of a point
-  const sz = parseNumericAttribute(element, 'w', 'sz');
-  if (sz !== undefined) {
-    border.size = sz;
-  }
-
-  // Space from text/page edge in points
-  const space = parseNumericAttribute(element, 'w', 'space');
-  if (space !== undefined) {
-    border.space = space;
-  }
-
-  // Color
-  const colorVal = getAttribute(element, 'w', 'color');
-  const themeColor = getAttribute(element, 'w', 'themeColor');
-  const themeTint = getAttribute(element, 'w', 'themeTint');
-  const themeShade = getAttribute(element, 'w', 'themeShade');
-  const color = parseColorValue(colorVal, themeColor, themeTint, themeShade);
-  if (color) {
-    border.color = color;
-  }
-
-  // Shadow effect
-  const shadow = getAttribute(element, 'w', 'shadow');
-  if (shadow === '1' || shadow === 'true') {
-    border.shadow = true;
-  }
-
-  // Frame effect
-  const frame = getAttribute(element, 'w', 'frame');
-  if (frame === '1' || frame === 'true') {
-    border.frame = true;
-  }
-
-  return border;
-}
 
 /**
  * Parse page orientation
@@ -345,6 +264,21 @@ export function parseSectionProperties(
       if (props.columnCount === undefined) {
         props.columnCount = colElements.length;
       }
+    }
+  }
+
+  // ============================================================================
+  // FOOTNOTE COLUMNS (w15:footnoteColumns)
+  // ============================================================================
+  // Word's "Footnote layout → Columns" setting. A w15 extension element that
+  // sits directly in w:sectPr (e.g. `<w15:footnoteColumns w:val="2"/>`),
+  // independent of the body's w:cols. findChild matches by local name, so it
+  // resolves regardless of the literal prefix the producer used.
+  const footnoteColumns = findChild(sectPr, 'w15', 'footnoteColumns');
+  if (footnoteColumns) {
+    const val = parseNumericAttribute(footnoteColumns, 'w', 'val');
+    if (val !== undefined && val > 0) {
+      props.footnoteColumns = val;
     }
   }
 
@@ -780,6 +714,7 @@ export function mergeSectionProperties(
   if (override.equalWidth !== undefined) result.equalWidth = override.equalWidth;
   if (override.separator !== undefined) result.separator = override.separator;
   if (override.columns !== undefined) result.columns = override.columns;
+  if (override.footnoteColumns !== undefined) result.footnoteColumns = override.footnoteColumns;
   if (override.sectionStart !== undefined) result.sectionStart = override.sectionStart;
   if (override.verticalAlign !== undefined) result.verticalAlign = override.verticalAlign;
   if (override.bidi !== undefined) result.bidi = override.bidi;

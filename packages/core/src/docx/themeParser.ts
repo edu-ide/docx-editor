@@ -297,6 +297,72 @@ export function parseTheme(themeXml: string | null): Theme {
 }
 
 /**
+ * Map a `w:themeFontLang` EastAsian language tag to the DrawingML `script`
+ * attribute used by the theme's `<a:font script="…">` entries.
+ */
+function eastAsiaLangToScript(lang: string): string | null {
+  const l = lang.toLowerCase();
+  if (l.startsWith('ja')) return 'Jpan';
+  if (l.startsWith('ko')) return 'Hang';
+  if (l.startsWith('zh')) {
+    // Traditional Chinese locales use the Hant typeface; everything else Hans.
+    if (l.includes('hant') || /-(tw|hk|mo)\b/.test(l)) return 'Hant';
+    return 'Hans';
+  }
+  return null;
+}
+
+/**
+ * Map a `w:themeFontLang` bidi/complex-script language tag to a DrawingML
+ * `script` attribute.
+ */
+function bidiLangToScript(lang: string): string | null {
+  const l = lang.toLowerCase();
+  if (l.startsWith('ar')) return 'Arab';
+  if (l.startsWith('he') || l.startsWith('iw')) return 'Hebr';
+  if (l.startsWith('th')) return 'Thai';
+  if (l.startsWith('hi') || l.startsWith('mr') || l.startsWith('ne')) return 'Deva';
+  return null;
+}
+
+/**
+ * Resolve empty EastAsian/complex-script theme font slots using the document's
+ * `w:themeFontLang`.
+ *
+ * Office's default theme leaves `<a:ea typeface="">`/`<a:cs typeface="">` empty
+ * and instead lists the real typeface per script (`<a:font script="Jpan" …>`).
+ * Word selects among those by the user/document language declared in
+ * `w:themeFontLang`. We mirror that here so a run that references
+ * `minorEastAsia` in a Japanese document resolves to `ＭＳ 明朝` rather than an
+ * empty string — an empty font breaks line-break measurement (canvas falls back
+ * to its 10px default) while the painter renders CJK glyphs at full width, so
+ * text overflows the right margin.
+ *
+ * Mutates the theme in place. This is safe for round-tripping because
+ * `word/theme/theme1.xml` is preserved verbatim on save (see `rezip.ts`); the
+ * parsed `Theme` is only consumed for layout/rendering.
+ */
+export function applyThemeFontLang(
+  theme: Theme | null | undefined,
+  themeFontLang: { eastAsia?: string; bidi?: string } | undefined
+): void {
+  if (!theme?.fontScheme || !themeFontLang) return;
+
+  const eaScript = themeFontLang.eastAsia ? eastAsiaLangToScript(themeFontLang.eastAsia) : null;
+  const csScript = themeFontLang.bidi ? bidiLangToScript(themeFontLang.bidi) : null;
+
+  for (const font of [theme.fontScheme.majorFont, theme.fontScheme.minorFont]) {
+    if (!font) continue;
+    if (!font.ea && eaScript && font.fonts?.[eaScript]) {
+      font.ea = font.fonts[eaScript];
+    }
+    if (!font.cs && csScript && font.fonts?.[csScript]) {
+      font.cs = font.fonts[csScript];
+    }
+  }
+}
+
+/**
  * Get a color from the theme by slot name
  *
  * @param theme - Parsed theme

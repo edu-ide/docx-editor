@@ -7,6 +7,10 @@
  * @public
  */
 
+import type { InlineSdtWidget } from './inlineSdtWidgets';
+
+export type { InlineSdtWidget } from './inlineSdtWidgets';
+
 /**
  * Unique identifier for a block in the document.
  * Format: typically `${index}-${type}` or just the block index.
@@ -126,6 +130,8 @@ export type TextRun = RunFormatting & {
   pmStart?: number;
   /** Absolute ProseMirror position (exclusive) after last character. */
   pmEnd?: number;
+  /** Inline content-control widget metadata when this run is the visible glyph. */
+  inlineSdtWidget?: InlineSdtWidget;
 };
 
 /**
@@ -361,6 +367,8 @@ export type ParagraphBlock = {
   sdtGroups?: SdtGroup[];
   kind: 'paragraph';
   id: BlockId;
+  /** Stable Word `w14:paraId` / PM `paraId`, when available. */
+  paraId?: string;
   runs: Run[];
   attrs?: ParagraphAttrs;
   /** ProseMirror start position for this block. */
@@ -468,6 +476,8 @@ export type TableBlock = {
   widthType?: string;
   /** Table horizontal alignment */
   justification?: 'left' | 'center' | 'right';
+  /** Visual RTL column order (`w:bidiVisual`): painter renders logical column 0 rightmost. */
+  bidi?: boolean;
   /** Table indent from left margin (in pixels, from w:tblInd) */
   indent?: number;
   /** Floating table properties (pixel values). */
@@ -937,6 +947,8 @@ export type Page = {
   footnoteIds?: number[];
   /** Height reserved for the footnote area at page bottom (pixels). */
   footnoteReservedHeight?: number;
+  /** Footnote-area columns (`w15:footnoteColumns`); absent/1 = single column. */
+  footnoteColumns?: number;
   /** Column layout for this page (if multi-column). */
   columns?: ColumnLayout;
 };

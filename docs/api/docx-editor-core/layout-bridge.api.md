@@ -30,7 +30,7 @@ export function buildFootnoteRenderItems(pageFootnoteMap: Map<number, number[]>,
 // @public
 export function calculateFootnoteReservedHeights(pageFootnoteMap: Map<number, number[]>, footnoteContentMap: Map<number, {
     height: number;
-}>): Map<number, number>;
+}>, columns?: number): Map<number, number>;
 
 // @public (undocumented)
 export function calculateHeaderFooterVisualBounds(blocks: FlowBlock[], measures: Measure[], flowHeight: number, metrics: HeaderFooterMetrics): {
@@ -93,10 +93,7 @@ export function clipRectToTableWindow(spanEl: Element, rect: {
 } | null;
 
 // @public
-export function collectFootnoteRefs(blocks: FlowBlock[]): Array<{
-    footnoteId: number;
-    pmPos: number;
-}>;
+export function collectFootnoteRefs(blocks: FlowBlock[]): FootnoteRefLocation[];
 
 // @public (undocumented)
 export function columnWidthForSection(config: SectionLayoutConfig): number;
@@ -175,8 +172,16 @@ export const DEFAULT_PAGE_HEIGHT_PX = 1056;
 // @public
 export const DEFAULT_PAGE_WIDTH_PX = 816;
 
+// @internal
+export function demoteBlockLikeFloatingTables(blocks: FlowBlock[], blockWidths: number[], fallbackWidth: number): void;
+
 // @public
 export function detectTableInsertHover(input: TableInsertHoverInput): TableInsertHoverHit | null;
+
+// @public
+export function distributeFootnotesIntoColumns<T extends {
+    height: number;
+}>(items: T[], columns: number): T[][];
 
 // @public
 export interface DomCaretPosition {
@@ -324,7 +329,18 @@ export interface FontStyle {
 }
 
 // @public
+export const FOOTNOTE_COLUMN_GAP_PX = 24;
+
+// @public
 export const FOOTNOTE_SEPARATOR_HEIGHT = 12;
+
+// @public
+export type FootnoteRefLocation = {
+    footnoteId: number;
+    pmPos: number;
+    tableBlockId?: BlockId;
+    rowIndex?: number;
+};
 
 // @public
 export function footnoteReservedHeightsEqual(a: Map<number, number>, b: Map<number, number>): boolean;
@@ -352,10 +368,10 @@ export function getCachedTextWidth(text: string, font: string, letterSpacing?: n
 export function getCanvasContext(): CanvasRenderingContext2D;
 
 // @public
-export function getCaretPosition(layout: Layout, blocks: FlowBlock[], measures: Measure[], pmPosition: number): CaretPosition_2 | null;
+export function getCaretPosition(layout: Layout, blocks: FlowBlock[], measures: Measure[], pmPosition: number, startPageIndex?: number): CaretPosition_2 | null;
 
 // @public (undocumented)
-export function getCaretPositionFromDom(container: HTMLElement, pmPos: number, overlayRect: DOMRect): DomCaretPosition | null;
+export function getCaretPositionFromDom(container: HTMLElement, pmPos: number, overlayRect: DOMRect, zoom?: number): DomCaretPosition | null;
 
 // @public
 export function getColumns(sectionProps: SectionProperties | null | undefined): ColumnLayout | undefined;
@@ -465,14 +481,14 @@ export function hitTestTableCell(pageHit: PageHit, blocks: FlowBlock[], measures
 // @public
 export function invalidateHfDomCache(): void;
 
+// @internal
+export function isBlockLikeFloatingTable(block: TableBlock, contentWidth: number): boolean;
+
 // @public
 export function isMultiPageSelection(rects: SelectionRect[]): boolean;
 
 // @public
-export function mapFootnotesToPages(pages: Page[], footnoteRefs: Array<{
-    footnoteId: number;
-    pmPos: number;
-}>): Map<number, number[]>;
+export function mapFootnotesToPages(pages: Page[], footnoteRefs: FootnoteRefLocation[]): Map<number, number[]>;
 
 // @public
 export const MAX_FOOTNOTE_LAYOUT_PASSES = 6;
@@ -566,6 +582,9 @@ export function resetBlockIdCounter(): void;
 // @public
 export function resetCanvasContext(): void;
 
+// @public (undocumented)
+export function resetImeCaretAnchor(hiddenHost: HTMLElement | null | undefined): void;
+
 // @internal
 export function resolveCellGrid(tableBlock: TableBlock): ResolvedGridCell[];
 
@@ -596,6 +615,12 @@ export function resolveHeaderFooterVisualTop(run: ImageRun, paragraphY: number, 
 
 // @public
 export function resolveListTemplate(template: string, counters: number[], levelNumFmts: NumberFormat[] | undefined): string;
+
+// @internal
+export function resolveTableColumnWidths(tableBlock: TableBlock, contentWidth: number): number[];
+
+// @internal
+export function resolveTableTotalWidthPx(tableBlock: TableBlock, contentWidth: number): number;
 
 // @internal
 export function resolveTableWidthPx(value: number | undefined, widthType: string | undefined, parentWidth: number): number | undefined;
@@ -647,13 +672,11 @@ export function stabilizeFootnoteLayout(args: StabilizeFootnoteLayoutArgs): Stab
 export interface StabilizeFootnoteLayoutArgs {
     // (undocumented)
     blocks: FlowBlock[];
+    footnoteColumns?: number;
     // (undocumented)
     footnoteContentMap: Map<number, FootnoteContent>;
     // (undocumented)
-    footnoteRefs: Array<{
-        footnoteId: number;
-        pmPos: number;
-    }>;
+    footnoteRefs: FootnoteRefLocation[];
     initialLayout: Layout;
     // (undocumented)
     layoutOpts: LayoutOptions;
@@ -668,6 +691,19 @@ export interface StabilizeFootnoteLayoutResult {
     layout: Layout;
     // (undocumented)
     pageFootnoteMap: Map<number, number[]>;
+}
+
+// @public
+export function syncImeCaretAnchor(input: SyncImeCaretAnchorOptions): boolean;
+
+// @public (undocumented)
+export interface SyncImeCaretAnchorOptions {
+    // (undocumented)
+    editorView: EditorView | null | undefined;
+    // (undocumented)
+    hiddenHost: HTMLElement | null | undefined;
+    // (undocumented)
+    visibleCaret: VisibleCaretViewportRect | null | undefined;
 }
 
 // @public
@@ -739,5 +775,13 @@ export function twipsToPixels(twips: number): number;
 
 // @public
 export function twipsToPx(twips: number): number;
+
+// @public (undocumented)
+export interface VisibleCaretViewportRect {
+    // (undocumented)
+    left: number;
+    // (undocumented)
+    top: number;
+}
 
 ```

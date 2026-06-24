@@ -12,10 +12,14 @@ import {
   clearTrackedChanges,
 } from '@eigenpal/docx-editor-core/prosemirror/extensions';
 import { readDocxFileFromInput, type DocxInput } from '@eigenpal/docx-editor-core/utils';
-import { insertImageNode } from '@eigenpal/docx-editor-core/prosemirror/commands';
+import { insertImageFromFile } from '@eigenpal/docx-editor-core/prosemirror/commands';
 import { renderAllPagesNow } from '@eigenpal/docx-editor-core/layout-painter';
 import type { EditorView } from 'prosemirror-view';
 import type { PagedEditorRef } from '../PagedEditor';
+
+function toFileIOError(error: unknown, fallbackMessage: string): Error {
+  return error instanceof Error ? error : new Error(fallbackMessage);
+}
 
 /**
  * File-IO surface of the editor: save (to buffer), download, print, open
@@ -33,6 +37,7 @@ export function useFileIO({
   comments,
   documentName,
   onSave,
+  onOpen,
   onError,
   onPrint,
   onDocumentNameChange,
@@ -46,6 +51,7 @@ export function useFileIO({
   comments: Comment[];
   documentName: string | undefined;
   onSave: ((buffer: ArrayBuffer) => void) | undefined;
+  onOpen: ((file: File) => void | Promise<void>) | undefined;
   onError: ((error: Error) => void) | undefined;
   onPrint: (() => void) | undefined;
   onDocumentNameChange: ((name: string) => void) | undefined;
@@ -112,7 +118,7 @@ export function useFileIO({
         onSave?.(buffer);
         return buffer;
       } catch (error) {
-        onError?.(error instanceof Error ? error : new Error('Failed to save document'));
+        onError?.(toFileIOError(error, 'Failed to save document'));
         return null;
       }
     },
@@ -166,14 +172,18 @@ export function useFileIO({
     printWindow.document.write(`<!DOCTYPE html>
 <html><head><title>Print</title>
 <style>
-${fontFaceRules.join('\n')}
 * { margin: 0; padding: 0; }
 body { background: white; }
 .layout-page { break-after: page; }
 .layout-page:last-child { break-after: auto; }
 @page { margin: 0; size: auto; }
 </style>
-</head><body>${pagesClone.outerHTML}</body></html>`);
+</head><body></body></html>`);
+
+    const fontStyleEl = printWindow.document.createElement('style');
+    fontStyleEl.textContent = fontFaceRules.join('\n');
+    printWindow.document.head.appendChild(fontStyleEl);
+    printWindow.document.body.appendChild(printWindow.document.importNode(pagesClone, true));
     printWindow.document.close();
 
     // Wait for fonts/images then print
@@ -214,16 +224,30 @@ body { background: white; }
 
   const handleDocxFileChange = useCallback(
     async (event: React.ChangeEvent<HTMLInputElement>) => {
+      if (onOpen) {
+        const input = event.currentTarget;
+        const file = input.files?.[0];
+        input.value = '';
+        if (!file) return;
+
+        try {
+          await onOpen(file);
+        } catch (error) {
+          onError?.(toFileIOError(error, 'Failed to open document'));
+        }
+        return;
+      }
+
       try {
         const result = await readDocxFileFromInput(event.nativeEvent);
         if (!result) return;
         await loadBuffer(result.buffer);
         onDocumentNameChange?.(result.name);
       } catch (error) {
-        onError?.(error instanceof Error ? error : new Error('Failed to open document'));
+        onError?.(toFileIOError(error, 'Failed to open document'));
       }
     },
-    [loadBuffer, onDocumentNameChange, onError]
+    [loadBuffer, onDocumentNameChange, onError, onOpen]
   );
 
   const handleInsertImageClick = useCallback(() => {
@@ -233,48 +257,11 @@ body { background: white; }
   const handleImageFileChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
-      if (!file) return;
-
       const view = getActiveEditorView();
-      if (!view) return;
-
-      const reader = new FileReader();
-      reader.onload = () => {
-        const dataUrl = reader.result as string;
-
-        const img = new Image();
-        img.onload = () => {
-          let width = img.naturalWidth;
-          let height = img.naturalHeight;
-
-          // Constrain to reasonable max width (content area of US Letter page at 96dpi)
-          const maxWidth = 612; // ~6.375 inches
-          if (width > maxWidth) {
-            const scale = maxWidth / width;
-            width = maxWidth;
-            height = Math.round(height * scale);
-          }
-
-          const rId = `rId_img_${Date.now()}`;
-          const imageNode = view.state.schema.nodes.image.create({
-            src: dataUrl,
-            alt: file.name,
-            width,
-            height,
-            rId,
-            wrapType: 'inline',
-            displayMode: 'inline',
-          });
-
-          // Shared helper dispatches the insert + applies the `insertion`
-          // mark when suggesting mode is active (Vue + clipboard paste
-          // call the same path).
-          insertImageNode(view.state, view.dispatch, imageNode, view.state.selection.from);
-          focusActiveEditor();
-        };
-        img.src = dataUrl;
-      };
-      reader.readAsDataURL(file);
+      // `insertImageFromFile` is the shared core flow (Vue calls it too): read
+      // the file, fit the image to the page width, and insert it inline with
+      // the `insertion` mark when suggesting mode is active.
+      if (file && view) insertImageFromFile(view, file, { onInserted: focusActiveEditor });
 
       // Reset the input so the same file can be selected again
       e.target.value = '';

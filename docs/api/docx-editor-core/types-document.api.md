@@ -20,7 +20,9 @@ export type BlockContent = Paragraph | Table | BlockSdt;
 // @public
 export interface BlockSdt {
     content: BlockContent[];
+    leadingBlockMarkers?: (BookmarkStart | BookmarkEnd)[];
     properties: SdtProperties;
+    trailingBlockMarkers?: (BookmarkStart | BookmarkEnd)[];
     // (undocumented)
     type: 'blockSdt';
 }
@@ -123,6 +125,7 @@ export interface ComplexField {
     fieldResult: Run[];
     fieldType: FieldType;
     fldLock?: boolean;
+    formatting?: TextFormatting;
     instruction: string;
     // (undocumented)
     type: 'complexField';
@@ -143,6 +146,9 @@ export interface ConditionalFormatStyle {
     seCell?: boolean;
     swCell?: boolean;
 }
+
+// @public
+export const DEFAULT_WATERMARK_PRESETS: readonly string[];
 
 // @public
 export interface Deletion {
@@ -177,7 +183,12 @@ export interface DocumentBody {
 
 // @public
 export interface DocumentSettings {
+    defaultTableStyle?: string;
     defaultTabStop: number;
+    themeFontLang?: {
+        eastAsia?: string;
+        bidi?: string;
+    };
 }
 
 // @public
@@ -279,16 +290,20 @@ export interface FloatingTableProperties {
 }
 
 // @public
+export interface FontEmbed {
+    fontKey?: string;
+    relId: string;
+    subsetted?: boolean;
+}
+
+// @public
 export interface FontInfo {
     altName?: string;
     charset?: string;
-    // (undocumented)
-    embedBold?: string;
-    // (undocumented)
-    embedBoldItalic?: string;
-    // (undocumented)
-    embedItalic?: string;
-    embedRegular?: string;
+    embedBold?: FontEmbed;
+    embedBoldItalic?: FontEmbed;
+    embedItalic?: FontEmbed;
+    embedRegular?: FontEmbed;
     family?: 'decorative' | 'modern' | 'roman' | 'script' | 'swiss' | 'auto';
     name: string;
     panose1?: string;
@@ -348,6 +363,7 @@ export interface HeaderFooter {
     hdrFtrType: HeaderFooterType;
     // (undocumented)
     type: 'header' | 'footer';
+    verbatimXml?: string;
     watermark?: Watermark;
 }
 
@@ -634,7 +650,7 @@ export interface NoteRefMarkContent {
 }
 
 // @public
-export type NumberFormat = 'decimal' | 'upperRoman' | 'lowerRoman' | 'upperLetter' | 'lowerLetter' | 'ordinal' | 'cardinalText' | 'ordinalText' | 'hex' | 'chicago' | 'ideographDigital' | 'japaneseCounting' | 'aiueo' | 'iroha' | 'decimalFullWidth' | 'decimalHalfWidth' | 'japaneseLegal' | 'japaneseDigitalTenThousand' | 'decimalEnclosedCircle' | 'decimalFullWidth2' | 'aiueoFullWidth' | 'irohaFullWidth' | 'decimalZero' | 'bullet' | 'ganada' | 'chosung' | 'decimalEnclosedFullstop' | 'decimalEnclosedParen' | 'decimalEnclosedCircleChinese' | 'ideographEnclosedCircle' | 'ideographTraditional' | 'ideographZodiac' | 'ideographZodiacTraditional' | 'taiwaneseCounting' | 'ideographLegalTraditional' | 'taiwaneseCountingThousand' | 'taiwaneseDigital' | 'chineseCounting' | 'chineseLegalSimplified' | 'chineseCountingThousand' | 'koreanDigital' | 'koreanCounting' | 'koreanLegal' | 'koreanDigital2' | 'vietnameseCounting' | 'russianLower' | 'russianUpper' | 'none' | 'numberInDash' | 'hebrew1' | 'hebrew2' | 'arabicAlpha' | 'arabicAbjad' | 'hindiVowels' | 'hindiConsonants' | 'hindiNumbers' | 'hindiCounting' | 'thaiLetters' | 'thaiNumbers' | 'thaiCounting';
+export type NumberFormat = 'decimal' | 'upperRoman' | 'lowerRoman' | 'upperLetter' | 'lowerLetter' | 'ordinal' | 'cardinalText' | 'ordinalText' | 'hex' | 'chicago' | 'ideographDigital' | 'japaneseCounting' | 'aiueo' | 'iroha' | 'decimalFullWidth' | 'decimalHalfWidth' | 'japaneseLegal' | 'japaneseDigitalTenThousand' | 'decimalEnclosedCircle' | 'decimalFullWidth2' | 'aiueoFullWidth' | 'irohaFullWidth' | 'decimalZero' | 'decimalZero3' | 'decimalZero4' | 'decimalZero5' | 'bullet' | 'ganada' | 'chosung' | 'decimalEnclosedFullstop' | 'decimalEnclosedParen' | 'decimalEnclosedCircleChinese' | 'ideographEnclosedCircle' | 'ideographTraditional' | 'ideographZodiac' | 'ideographZodiacTraditional' | 'taiwaneseCounting' | 'ideographLegalTraditional' | 'taiwaneseCountingThousand' | 'taiwaneseDigital' | 'chineseCounting' | 'chineseLegalSimplified' | 'chineseCountingThousand' | 'koreanDigital' | 'koreanCounting' | 'koreanLegal' | 'koreanDigital2' | 'vietnameseCounting' | 'russianLower' | 'russianUpper' | 'none' | 'numberInDash' | 'hebrew1' | 'hebrew2' | 'arabicAlpha' | 'arabicAbjad' | 'hindiVowels' | 'hindiConsonants' | 'hindiNumbers' | 'hindiCounting' | 'thaiLetters' | 'thaiNumbers' | 'thaiCounting';
 
 // @public
 export interface NumberingDefinitions {
@@ -660,6 +676,7 @@ export type PageOrientation = 'portrait' | 'landscape';
 export interface Paragraph {
     content: ParagraphContent[];
     formatting?: ParagraphFormatting;
+    leadingBlockMarkers?: (BookmarkStart | BookmarkEnd)[];
     listRendering?: ListRendering;
     paraId?: string;
     pPrDel?: TrackedChangeInfo;
@@ -668,6 +685,7 @@ export interface Paragraph {
     renderedPageBreakBefore?: boolean;
     sectionProperties?: SectionProperties;
     textId?: string;
+    trailingBlockMarkers?: (BookmarkStart | BookmarkEnd)[];
     // (undocumented)
     type: 'paragraph';
 }
@@ -713,6 +731,10 @@ export interface ParagraphFormatting {
     lineSpacing?: number;
     lineSpacingRule?: LineSpacingRule;
     numPr?: {
+        numId?: number;
+        ilvl?: number;
+    };
+    numPrFromStyle?: {
         numId?: number;
         ilvl?: number;
     };
@@ -860,6 +882,7 @@ export interface SectionProperties {
     evenAndOddHeaders?: boolean;
     footerDistance?: number;
     footerReferences?: FooterReference[];
+    footnoteColumns?: number;
     footnotePr?: FootnoteProperties;
     gutter?: number;
     headerDistance?: number;
@@ -1069,8 +1092,10 @@ export interface TabContent {
 export interface Table {
     columnWidths?: number[];
     formatting?: TableFormatting;
+    leadingBlockMarkers?: (BookmarkStart | BookmarkEnd)[];
     propertyChanges?: TablePropertyChange[];
     rows: TableRow[];
+    trailingBlockMarkers?: (BookmarkStart | BookmarkEnd)[];
     // (undocumented)
     type: 'table';
 }

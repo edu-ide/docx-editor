@@ -20,13 +20,15 @@ import {
 import {
   applyFormatting,
   setParagraphStyle,
+  insertBreak,
 } from '@eigenpal/docx-editor-core/prosemirror/applyFormatting';
 import {
   ContentControlNotFoundError,
   type ContentControlFilter,
   type ContentControlValue,
 } from '@eigenpal/docx-editor-core/agent';
-import type { DocxInput } from '@eigenpal/docx-editor-core/utils';
+import type { DocxInput, ScrollToParaIdOptions } from '@eigenpal/docx-editor-core/utils';
+import { getCachedNumberingMap } from '@eigenpal/docx-editor-core/docx';
 import type { DocxEditorRef } from '../../DocxEditor';
 import type { PagedEditorRef } from '../PagedEditor';
 import {
@@ -154,7 +156,16 @@ export function useDocxEditorRefApi({
         const styleResolver = currentDoc?.package?.styles
           ? getCachedStyleResolver(currentDoc.package.styles)
           : null;
-        return setParagraphStyle(view, options, { styleResolver });
+        const numbering = currentDoc?.package?.numbering
+          ? getCachedNumberingMap(currentDoc.package.numbering)
+          : null;
+        return setParagraphStyle(view, options, { styleResolver, numbering });
+      },
+
+      insertBreak: (options) => {
+        const view = pagedEditorRef.current?.getView();
+        if (!view) return false;
+        return insertBreak(view, options);
       },
 
       getPageContent: (pageNumber) =>
@@ -164,7 +175,18 @@ export function useDocxEditorRefApi({
           pageNumber
         ),
 
-      scrollToParaId: (paraId) => pagedEditorRef.current?.scrollToParaId(paraId) ?? false,
+      scrollToParaId: (paraId: string, options?: ScrollToParaIdOptions) =>
+        pagedEditorRef.current?.scrollToParaId(paraId, options) ?? false,
+
+      scrollToCommentId: (commentId) =>
+        pagedEditorRef.current?.scrollToCommentId(commentId) ?? false,
+
+      scrollToChangeId: (revisionId) =>
+        pagedEditorRef.current?.scrollToChangeId(revisionId) ?? false,
+
+      highlightRange: (from, to) => {
+        pagedEditorRef.current?.highlightRange(from, to);
+      },
 
       findInDocument: (query, opts) =>
         findInDocumentCore(pagedEditorRef.current?.getView() ?? null, query, opts),

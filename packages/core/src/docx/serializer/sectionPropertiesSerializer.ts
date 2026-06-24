@@ -17,59 +17,10 @@ import type {
   FooterReference,
   FootnoteProperties,
   EndnoteProperties,
-  BorderSpec,
 } from '../../types/document';
 
-import { intAttr } from './xmlUtils';
-
-/**
- * Serialize a border element
- */
-function serializeBorder(border: BorderSpec | undefined, elementName: string): string {
-  if (!border || border.style === 'none' || border.style === 'nil') {
-    return '';
-  }
-
-  const attrs: string[] = [`w:val="${border.style}"`];
-
-  if (border.size !== undefined) {
-    attrs.push(`w:sz="${intAttr(border.size)}"`);
-  }
-
-  if (border.space !== undefined) {
-    attrs.push(`w:space="${intAttr(border.space)}"`);
-  }
-
-  if (border.color) {
-    if (border.color.auto) {
-      attrs.push('w:color="auto"');
-    } else if (border.color.rgb) {
-      attrs.push(`w:color="${border.color.rgb}"`);
-    }
-
-    if (border.color.themeColor) {
-      attrs.push(`w:themeColor="${border.color.themeColor}"`);
-    }
-
-    if (border.color.themeTint) {
-      attrs.push(`w:themeTint="${border.color.themeTint}"`);
-    }
-
-    if (border.color.themeShade) {
-      attrs.push(`w:themeShade="${border.color.themeShade}"`);
-    }
-  }
-
-  if (border.shadow) {
-    attrs.push('w:shadow="true"');
-  }
-
-  if (border.frame) {
-    attrs.push('w:frame="true"');
-  }
-
-  return `<w:${elementName} ${attrs.join(' ')}/>`;
-}
+import { escapeXml, intAttr } from './xmlUtils';
+import { serializeBorder } from './borderSerializer';
 
 /**
  * Serialize header reference (w:headerReference)
@@ -296,36 +247,23 @@ function serializePageBorders(props: SectionProperties): string {
   const attrs: string[] = [];
   const borderElements: string[] = [];
 
+  // display/offsetFrom/zOrder are file-derived enum values cast without
+  // validation, so escape them before interpolating into the attribute.
   if (pb.display) {
-    attrs.push(`w:display="${pb.display}"`);
+    attrs.push(`w:display="${escapeXml(pb.display)}"`);
   }
 
   if (pb.offsetFrom) {
-    attrs.push(`w:offsetFrom="${pb.offsetFrom}"`);
+    attrs.push(`w:offsetFrom="${escapeXml(pb.offsetFrom)}"`);
   }
 
   if (pb.zOrder) {
-    attrs.push(`w:zOrder="${pb.zOrder}"`);
+    attrs.push(`w:zOrder="${escapeXml(pb.zOrder)}"`);
   }
 
-  if (pb.top) {
-    const topXml = serializeBorder(pb.top, 'top');
-    if (topXml) borderElements.push(topXml);
-  }
-
-  if (pb.left) {
-    const leftXml = serializeBorder(pb.left, 'left');
-    if (leftXml) borderElements.push(leftXml);
-  }
-
-  if (pb.bottom) {
-    const bottomXml = serializeBorder(pb.bottom, 'bottom');
-    if (bottomXml) borderElements.push(bottomXml);
-  }
-
-  if (pb.right) {
-    const rightXml = serializeBorder(pb.right, 'right');
-    if (rightXml) borderElements.push(rightXml);
+  for (const side of ['top', 'left', 'bottom', 'right'] as const) {
+    const xml = serializeBorder(pb[side], side);
+    if (xml) borderElements.push(xml);
   }
 
   if (borderElements.length === 0) return '';
@@ -439,6 +377,14 @@ export function serializeSectionProperties(props: SectionProperties | undefined)
   const colsXml = serializeColumns(props);
   if (colsXml) {
     parts.push(colsXml);
+  }
+
+  // Footnote columns (w15:footnoteColumns) — Word emits this immediately after
+  // w:cols. It is a w15-extension child of w:sectPr; the w15 namespace is
+  // already declared on the document root by the document serializer. Only emit
+  // for an explicit multi-column value (1 is the default and Word omits it).
+  if (props.footnoteColumns !== undefined && props.footnoteColumns > 1) {
+    parts.push(`<w15:footnoteColumns w:val="${intAttr(props.footnoteColumns)}"/>`);
   }
 
   // Remaining EG_SectPrContents elements MUST follow schema order

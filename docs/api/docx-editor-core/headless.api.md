@@ -148,6 +148,11 @@ export class ContentControlBoundError extends Error {
 }
 
 // @public
+export class ContentControlCreateError extends Error {
+    constructor(message: string);
+}
+
+// @public
 export interface ContentControlFilter {
     alias?: string;
     id?: number;
@@ -163,10 +168,12 @@ export interface ContentControlInfo {
     dateFormat?: string;
     depth: number;
     id?: number;
+    kind: 'block' | 'inline';
     listItems?: {
         displayText: string;
         value: string;
     }[];
+    location: ContentControlLocation;
     lock?: SdtProperties['lock'];
     path: number[];
     placeholder?: string;
@@ -175,6 +182,19 @@ export interface ContentControlInfo {
     tag?: string;
     text: string;
 }
+
+// @public
+export class ContentControlKindError extends Error {
+    constructor(detail: string);
+}
+
+// @public
+export type ContentControlLocation = {
+    part: 'body';
+} | {
+    part: 'header' | 'footer';
+    rId: string;
+};
 
 // @public
 export class ContentControlLockedError extends Error {
@@ -246,6 +266,19 @@ export function createCollapsedRange(position: Position_2): Range_2;
 
 // @public
 export function createCommand<T extends AgentCommand>(command: Omit<T, 'id'>): T;
+
+// @public
+export function createContentControl(doc: Document_2, target: CreateContentControlTarget, props?: NewContentControlProps): {
+    doc: Document_2;
+    control: ContentControlInfo;
+};
+
+// @public
+export interface CreateContentControlTarget {
+    occurrence?: number;
+    paraId: string;
+    text: string;
+}
 
 // @public
 export function createDocumentWithText(text: string, options?: Omit<CreateEmptyDocumentOptions, 'initialText'>): Document_2;
@@ -442,10 +475,15 @@ export interface ExtendedSelectionContext extends SelectionContext {
 export function extractVariablesFromText(text: string): string[];
 
 // @public
-export function findContentControl(input: Document_2 | DocumentBody, filter: ContentControlFilter): ContentControlInfo | undefined;
+export function findContentControl(input: Document_2 | DocumentBody, filter: ContentControlFilter, options?: FindContentControlsOptions): ContentControlInfo | undefined;
 
 // @public
-export function findContentControls(input: Document_2 | DocumentBody, filter?: ContentControlFilter): ContentControlInfo[];
+export function findContentControls(input: Document_2 | DocumentBody, filter?: ContentControlFilter, options?: FindContentControlsOptions): ContentControlInfo[];
+
+// @public
+export interface FindContentControlsOptions {
+    includeHeadersFooters?: boolean;
+}
 
 // @public
 export interface Footnote {
@@ -519,7 +557,7 @@ export function getBodyText(body: DocumentBody): string;
 export function getBodyWordCount(body: DocumentBody): number;
 
 // @public
-export function getContentControlText(control: BlockSdt): string;
+export function getContentControlText(control: BlockSdt | InlineSdt): string;
 
 // @public
 export function getContrastingColor(backgroundColor: ColorValue | undefined | null, theme: Theme | null | undefined): string;
@@ -883,6 +921,22 @@ export interface MoveTo {
 }
 
 // @public
+export interface NewContentControlProps {
+    alias?: string;
+    checked?: boolean;
+    dateFormat?: string;
+    id?: number;
+    listItems?: {
+        displayText: string;
+        value: string;
+    }[];
+    lock?: SdtProperties['lock'];
+    sdtType?: SdtType;
+    showingPlaceholder?: boolean;
+    tag?: string;
+}
+
+// @public
 export interface NumberingDefinitions {
     abstractNums: AbstractNumbering[];
     nums: NumberingInstance[];
@@ -892,6 +946,7 @@ export interface NumberingDefinitions {
 export interface Paragraph {
     content: ParagraphContent[];
     formatting?: ParagraphFormatting;
+    leadingBlockMarkers?: (BookmarkStart | BookmarkEnd)[];
     listRendering?: ListRendering;
     paraId?: string;
     pPrDel?: TrackedChangeInfo;
@@ -900,6 +955,7 @@ export interface Paragraph {
     renderedPageBreakBefore?: boolean;
     sectionProperties?: SectionProperties;
     textId?: string;
+    trailingBlockMarkers?: (BookmarkStart | BookmarkEnd)[];
     // (undocumented)
     type: 'paragraph';
 }
@@ -950,6 +1006,10 @@ export interface ParagraphFormatting {
     lineSpacing?: number;
     lineSpacingRule?: LineSpacingRule;
     numPr?: {
+        numId?: number;
+        ilvl?: number;
+    };
+    numPrFromStyle?: {
         numId?: number;
         ilvl?: number;
     };
@@ -1137,6 +1197,8 @@ export interface Relationship {
 export function removeContentControl(doc: Document_2, filter: ContentControlFilter, options?: {
     force?: boolean;
     keepContent?: boolean;
+    includeHeadersFooters?: boolean;
+    all?: boolean;
 }): Document_2;
 
 // @public
@@ -1224,6 +1286,7 @@ export interface SectionProperties {
     evenAndOddHeaders?: boolean;
     footerDistance?: number;
     footerReferences?: FooterReference[];
+    footnoteColumns?: number;
     footnotePr?: FootnoteProperties;
     gutter?: number;
     headerDistance?: number;
@@ -1293,11 +1356,15 @@ export function serializeSectionProperties(props: SectionProperties | undefined)
 // @public
 export function setContentControlContent(doc: Document_2, filter: ContentControlFilter, replacement: string | BlockContent[], options?: {
     force?: boolean;
+    includeHeadersFooters?: boolean;
+    all?: boolean;
 }): Document_2;
 
 // @public
 export function setContentControlValue(doc: Document_2, filter: ContentControlFilter, value: ContentControlValue, options?: {
     force?: boolean;
+    includeHeadersFooters?: boolean;
+    all?: boolean;
 }): Document_2;
 
 // @public
@@ -1376,8 +1443,10 @@ export interface SuggestedAction {
 export interface Table {
     columnWidths?: number[];
     formatting?: TableFormatting;
+    leadingBlockMarkers?: (BookmarkStart | BookmarkEnd)[];
     propertyChanges?: TablePropertyChange[];
     rows: TableRow[];
+    trailingBlockMarkers?: (BookmarkStart | BookmarkEnd)[];
     // (undocumented)
     type: 'table';
 }

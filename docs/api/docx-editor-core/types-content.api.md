@@ -10,7 +10,9 @@ export type BlockContent = Paragraph | Table | BlockSdt;
 // @public
 export interface BlockSdt {
     content: BlockContent[];
+    leadingBlockMarkers?: (BookmarkStart | BookmarkEnd)[];
     properties: SdtProperties;
+    trailingBlockMarkers?: (BookmarkStart | BookmarkEnd)[];
     // (undocumented)
     type: 'blockSdt';
 }
@@ -82,10 +84,14 @@ export interface ComplexField {
     fieldResult: Run[];
     fieldType: FieldType;
     fldLock?: boolean;
+    formatting?: TextFormatting;
     instruction: string;
     // (undocumented)
     type: 'complexField';
 }
+
+// @public
+export const DEFAULT_WATERMARK_PRESETS: readonly string[];
 
 // @public
 export interface Deletion {
@@ -189,6 +195,7 @@ export interface HeaderFooter {
     hdrFtrType: HeaderFooterType;
     // (undocumented)
     type: 'header' | 'footer';
+    verbatimXml?: string;
     watermark?: Watermark;
 }
 
@@ -430,6 +437,7 @@ export type PageOrientation = 'portrait' | 'landscape';
 export interface Paragraph {
     content: ParagraphContent[];
     formatting?: ParagraphFormatting;
+    leadingBlockMarkers?: (BookmarkStart | BookmarkEnd)[];
     listRendering?: ListRendering;
     paraId?: string;
     pPrDel?: TrackedChangeInfo;
@@ -438,6 +446,7 @@ export interface Paragraph {
     renderedPageBreakBefore?: boolean;
     sectionProperties?: SectionProperties;
     textId?: string;
+    trailingBlockMarkers?: (BookmarkStart | BookmarkEnd)[];
     // (undocumented)
     type: 'paragraph';
 }
@@ -561,6 +570,7 @@ export interface SectionProperties {
     evenAndOddHeaders?: boolean;
     footerDistance?: number;
     footerReferences?: FooterReference[];
+    footnoteColumns?: number;
     footnotePr?: FootnoteProperties;
     gutter?: number;
     headerDistance?: number;
@@ -716,8 +726,10 @@ export interface TabContent {
 export interface Table {
     columnWidths?: number[];
     formatting?: TableFormatting;
+    leadingBlockMarkers?: (BookmarkStart | BookmarkEnd)[];
     propertyChanges?: TablePropertyChange[];
     rows: TableRow[];
+    trailingBlockMarkers?: (BookmarkStart | BookmarkEnd)[];
     // (undocumented)
     type: 'table';
 }

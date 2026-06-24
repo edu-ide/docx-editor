@@ -465,6 +465,7 @@ export function parseParagraphContents(
   let afterSeparator = false;
   let complexFieldLock = false;
   let complexFieldDirty = false;
+  let complexFieldFormatting: Run['formatting'] | undefined;
 
   for (const child of children) {
     const localName = getLocalName(child.name);
@@ -507,11 +508,20 @@ export function parseParagraphContents(
           complexFieldResultRuns = [];
           complexFieldLock = false;
           complexFieldDirty = false;
+          // The structural run carrying `begin` holds the field's run
+          // properties. Capture them so the result keeps its formatting even
+          // when there is no separate result run to read it from.
+          complexFieldFormatting = run.formatting;
         }
 
         if (inComplexField) {
           if (instrText) {
             complexFieldInstr += instrText;
+          }
+          // Prefer any field run that actually carries formatting (the begin
+          // run is often empty in docs that put `w:rPr` on a later code run).
+          if (!complexFieldFormatting && run.formatting) {
+            complexFieldFormatting = run.formatting;
           }
 
           if (hasFieldSeparate) {
@@ -538,6 +548,7 @@ export function parseParagraphContents(
               fieldResult: complexFieldResultRuns,
             };
 
+            if (complexFieldFormatting) complexField.formatting = complexFieldFormatting;
             if (complexFieldLock) complexField.fldLock = true;
             if (complexFieldDirty) complexField.dirty = true;
 
@@ -690,8 +701,22 @@ export function parseParagraphContents(
         break;
       }
 
-      case 'smartTag':
+      case 'smartTag': {
+        // w:smartTag is a transparent inline wrapper (legacy Word smart-tag
+        // recognizer markup). Its children are ordinary paragraph content;
+        // recurse so the wrapped runs aren't dropped.
+        const inner = parseParagraphContents(
+          child,
+          styles,
+          theme,
+          null,
+          rels,
+          media,
+          trackedContext
+        );
+        contents.push(...inner);
         break;
+      }
 
       case 'moveFromRangeStart': {
         const id = parseInt(getAttribute(child, 'w', 'id') ?? '0', 10);

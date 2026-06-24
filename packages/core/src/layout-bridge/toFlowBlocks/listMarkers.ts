@@ -10,6 +10,7 @@
 import type { NumberFormat } from '../../types/document';
 import type { ParagraphAttrs as PMParagraphAttrs } from '../../prosemirror/schema/nodes';
 import { convertBulletToUnicode } from '../../docx/blockContentParser';
+import { padDecimal } from '../../docx/numberingParser';
 
 export function formatNumberedMarker(counters: number[], level: number): string {
   const parts: number[] = [];
@@ -76,7 +77,13 @@ function formatCounter(value: number, fmt: NumberFormat | undefined): string {
     case 'lowerLetter':
       return toLetter(value, false);
     case 'decimalZero':
-      return value < 10 ? `0${value}` : String(value);
+      return padDecimal(value, 2);
+    case 'decimalZero3':
+      return padDecimal(value, 3);
+    case 'decimalZero4':
+      return padDecimal(value, 4);
+    case 'decimalZero5':
+      return padDecimal(value, 5);
     case 'none':
       return '';
     default:

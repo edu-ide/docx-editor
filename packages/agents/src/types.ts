@@ -77,12 +77,10 @@ export interface ReviewChange {
    */
   paragraphIndex: number;
   /**
-   * Set when the change lives inside a footnote or endnote. Such changes are
-   * surfaced for discovery only — accept/reject operate on the body, so an id
-   * that resolves *only* to a note change throws `NoteChangeNotEditableError`
-   * (an id also present on a body change resolves to the body change). The
-   * raw `id` is not namespaced across parts, so pair it with `noteId` /
-   * `noteType` to identify the change.
+   * Set when the change lives inside a footnote or endnote. The raw `id` is not
+   * namespaced across parts, so pair it with `noteId` / `noteType` to identify
+   * the change, and pass the whole `ReviewChange` back to `acceptChange` /
+   * `rejectChange` to resolve it inside that note.
    */
   noteId?: number;
   /** Which note store the change came from. Absent for body changes. */
@@ -115,6 +113,12 @@ export interface ChangeFilter {
   /** Also report tracked changes inside endnote bodies. Default: false. */
   includeEndnotes?: boolean;
 }
+
+/**
+ * Options for `acceptAll` / `rejectAll`. Opt in to also resolve tracked changes
+ * inside footnote/endnote bodies; mirrors the discovery flags on {@link ChangeFilter}.
+ */
+export type AcceptChangesOptions = Pick<ChangeFilter, 'includeFootnotes' | 'includeEndnotes'>;
 
 export interface CommentFilter {
   author?: string;
@@ -241,6 +245,19 @@ export interface ApplyFormattingOptions {
 export interface SetParagraphStyleOptions {
   paraId: string;
   styleId: string;
+}
+
+/** Kind of break `insertBreak` inserts after a paragraph. */
+export type BreakType = 'page' | 'sectionNextPage' | 'sectionContinuous';
+
+/**
+ * Insert a page or section break after the paragraph identified by `paraId`.
+ * `page` adds a page break; `sectionNextPage` starts a new section on a new
+ * page; `sectionContinuous` starts a new section on the same page.
+ */
+export interface InsertBreakOptions {
+  paraId: string;
+  type: BreakType;
 }
 
 /** A single paragraph anchored on a page (returned by `getPage` / `getPages`). */

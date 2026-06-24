@@ -252,6 +252,10 @@ export interface EditorRefLike {
     // (undocumented)
     getSelectionInfo(): SelectionInfo | null;
     getTotalPages(): number;
+    insertBreak(options: {
+        paraId: string;
+        type: 'page' | 'sectionNextPage' | 'sectionContinuous';
+    }): boolean;
     // (undocumented)
     onContentChange(listener: (doc: unknown) => void): () => void;
     // (undocumented)
@@ -268,7 +272,7 @@ export interface EditorRefLike {
     // (undocumented)
     resolveComment(commentId: number): void;
     // (undocumented)
-    scrollToParaId(paraId: string): boolean;
+    scrollToParaId(paraId: string, options?: ScrollToParaIdOptions): boolean;
     setParagraphStyle(options: {
         paraId: string;
         styleId: string;

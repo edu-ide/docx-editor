@@ -10,12 +10,19 @@ import type { EditorView } from 'prosemirror-view';
 import type { Document } from '@eigenpal/docx-editor-core/types/document';
 import { applyStyle } from '@eigenpal/docx-editor-core/prosemirror/commands/paragraph';
 import { createStyleResolver } from '@eigenpal/docx-editor-core/prosemirror/styles';
+import { getCachedNumberingMap } from '@eigenpal/docx-editor-core/docx';
 import { clearFormatting } from '@eigenpal/docx-editor-core/prosemirror/commands/formatting';
 import { insertPageBreak } from '@eigenpal/docx-editor-core/prosemirror/commands/pageBreak';
 import {
+  insertSectionBreakNextPage,
+  insertSectionBreakContinuous,
+} from '@eigenpal/docx-editor-core/prosemirror/commands/sectionBreak';
+import {
   applyFormatting as applyFormattingCore,
   setParagraphStyle as setParagraphStyleCore,
+  insertBreak as insertBreakCore,
   type ApplyFormattingOptions,
+  type InsertBreakOptions,
 } from '@eigenpal/docx-editor-core/prosemirror/applyFormatting';
 
 export interface UseFormattingActionsOptions {
@@ -31,7 +38,7 @@ export interface UseFormattingActionsOptions {
   getDocument: () => Document | null;
 }
 
-export type { ApplyFormattingOptions };
+export type { ApplyFormattingOptions, InsertBreakOptions };
 
 export function useFormattingActions(opts: UseFormattingActionsOptions) {
   const targetView = () => opts.activeView?.value ?? opts.editorView.value;
@@ -54,6 +61,7 @@ export function useFormattingActions(opts: UseFormattingActionsOptions) {
       applyStyle(styleId, {
         paragraphFormatting: resolved.paragraphFormatting,
         runFormatting: resolved.runFormatting,
+        numbering: doc?.package?.numbering ? getCachedNumberingMap(doc.package.numbering) : null,
       })(view.state, (tr) => view.dispatch(tr));
     } else {
       applyStyle(styleId)(view.state, (tr) => view.dispatch(tr));
@@ -65,6 +73,20 @@ export function useFormattingActions(opts: UseFormattingActionsOptions) {
     const view = opts.editorView.value;
     if (!view) return;
     insertPageBreak(view.state, (tr) => view.dispatch(tr), view);
+    view.focus();
+  }
+
+  function handleInsertSectionBreakNextPage() {
+    const view = opts.editorView.value;
+    if (!view) return;
+    insertSectionBreakNextPage(view.state, (tr) => view.dispatch(tr), view);
+    view.focus();
+  }
+
+  function handleInsertSectionBreakContinuous() {
+    const view = opts.editorView.value;
+    if (!view) return;
+    insertSectionBreakContinuous(view.state, (tr) => view.dispatch(tr), view);
     view.focus();
   }
 
@@ -88,15 +110,25 @@ export function useFormattingActions(opts: UseFormattingActionsOptions) {
     if (!view) return false;
     const doc = opts.getDocument();
     const styleResolver = doc?.package?.styles ? createStyleResolver(doc.package.styles) : null;
-    return setParagraphStyleCore(view, options, { styleResolver });
+    const numbering = doc?.package?.numbering ? getCachedNumberingMap(doc.package.numbering) : null;
+    return setParagraphStyleCore(view, options, { styleResolver, numbering });
+  }
+
+  function insertBreak(options: InsertBreakOptions): boolean {
+    const view = opts.editorView.value;
+    if (!view) return false;
+    return insertBreakCore(view, options);
   }
 
   return {
     handleClearFormatting,
     handleApplyStyle,
     handleInsertPageBreak,
+    handleInsertSectionBreakNextPage,
+    handleInsertSectionBreakContinuous,
     handleInsertSymbol,
     applyFormatting,
     setParagraphStyle,
+    insertBreak,
   };
 }

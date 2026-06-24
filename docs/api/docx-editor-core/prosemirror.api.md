@@ -81,6 +81,9 @@ export const clearStyle: Command;
 export const clearTextColor: Command;
 
 // @public
+export function createDocumentContextPlugin(options?: Partial<DocumentContext>): Plugin_2;
+
+// @public
 export function createDocumentStylesPlugin(styles: StyleDefinitions | StyleResolver | null | undefined): Plugin_2;
 
 // @public
@@ -109,6 +112,15 @@ export function deleteTable(state: EditorState, dispatch?: (tr: Transaction) => 
 
 // @public (undocumented)
 export function distributeColumns(): (state: EditorState, dispatch?: (tr: Transaction) => void) => boolean;
+
+// @public
+export interface DocumentContext {
+    defaultTableStyleId: string | null;
+    theme: Theme | null;
+}
+
+// @public (undocumented)
+export const documentContextKey: PluginKey<DocumentContext>;
 
 // @public
 export const documentStylesKey: PluginKey<StyleResolver | null>;
@@ -168,7 +180,9 @@ export interface FontFamilyAttrs {
 // @public
 export interface FontSizeAttrs {
     // (undocumented)
-    size: number;
+    size?: number | null;
+    // (undocumented)
+    sizeCs?: number | null;
 }
 
 // @public
@@ -179,11 +193,28 @@ export function footnoteToProseDoc(content: BlockContent[], options?: ToProseDoc
 // @public
 export function fromProseDoc(pmDoc: Node_2, baseDocument?: Document_2): Document_2;
 
+// @public
+export function generateTableOfContents(options?: GenerateTOCOptions): Command;
+
 // @public (undocumented)
 export const generateTOC: Command;
 
 // @public
+export interface GenerateTOCOptions {
+    includeHyperlinks?: boolean;
+    maxLevel?: number;
+    minLevel?: number;
+    title?: string | null;
+}
+
+// @public
+export function getDefaultTableStyleId(state: EditorState): string | null;
+
+// @public
 export function getDocumentStyleResolver(state: EditorState): StyleResolver | null;
+
+// @public
+export function getDocumentTheme(state: EditorState): Theme | null;
 
 // @public (undocumented)
 export function getHyperlinkAttrs(state: EditorState): {
@@ -364,6 +395,7 @@ export interface ParagraphAttrs {
     keepLines?: boolean;
     // (undocumented)
     keepNext?: boolean;
+    leadingBlockMarkers?: BlockBookmarkMarkers;
     // (undocumented)
     lineSpacing?: number;
     // (undocumented)
@@ -378,12 +410,23 @@ export interface ParagraphAttrs {
     listMarkerSuffix?: 'tab' | 'space' | 'nothing';
     listNumFmt?: NumberFormat;
     listStartOverride?: number;
+    loneBookmarkEndIds?: number[];
     // (undocumented)
     numPr?: {
         numId?: number;
         ilvl?: number;
     };
+    numPrFromStyle?: {
+        numId?: number;
+        ilvl?: number;
+    };
     _originalFormatting?: ParagraphFormatting;
+    _originalRunBoundaries?: Array<{
+        text: string;
+        marksKey?: string;
+        formatting?: TextFormatting;
+        propertyChanges?: RunPropertyChange[];
+    }>;
     // (undocumented)
     outlineLevel?: number;
     // (undocumented)
@@ -410,6 +453,7 @@ export interface ParagraphAttrs {
     tabs?: TabStop[];
     // (undocumented)
     textId?: string;
+    trailingBlockMarkers?: BlockBookmarkMarkers;
 }
 
 // @public
@@ -550,6 +594,11 @@ export function setCellVerticalAlign(align: 'top' | 'center' | 'bottom'): (state
 
 // @public
 export function setContentControlContentTr(state: EditorState, filter: ContentControlFilter, text: string, options?: {
+    force?: boolean;
+}): Transaction;
+
+// @public
+export function setContentControlValueAtPosTr(state: EditorState, pos: number, value: ContentControlValue, options?: {
     force?: boolean;
 }): Transaction;
 

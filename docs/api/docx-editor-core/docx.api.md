@@ -36,10 +36,19 @@ export interface ComplexFieldContext {
 export type ComplexFieldState = 'outside' | 'code' | 'result';
 
 // @public
+export function computeListRendering(numPr: {
+    numId?: number;
+    ilvl?: number;
+}, numbering: NumberingMap): ListRendering | null;
+
+// @public
 export function createComplexFieldContext(): ComplexFieldContext;
 
 // @public
 export function createDocx(doc: Document_2): Promise<ArrayBuffer>;
+
+// @public (undocumented)
+export function createNumberingMap(definitions: NumberingDefinitions): NumberingMap;
 
 // @public
 export const DEFAULT_TAB_ALIGNMENT: TabStopAlignment;
@@ -63,6 +72,17 @@ export interface EndnoteMap {
     getSeparator(): Endnote | undefined;
     hasEndnote(id: number): boolean;
 }
+
+// @public
+export interface ExtractedRaster {
+    // (undocumented)
+    bytes: Uint8Array;
+    // (undocumented)
+    mimeType: 'image/png' | 'image/jpeg';
+}
+
+// @public
+export function extractMetafileRaster(data: ArrayBuffer | Uint8Array): ExtractedRaster | null;
 
 // @public
 export function extractTextBoxContentElements(txbxContent: Element_2 | null): {
@@ -92,6 +112,9 @@ export function formatNumber(num: number, format: NumberFormat): string;
 
 // @public
 export function getBulletCharacter(level: ListLevel): string;
+
+// @public (undocumented)
+export function getCachedNumberingMap(definitions: NumberingDefinitions): NumberingMap;
 
 // @public
 export function getEndnoteText(endnote: Endnote): string;
@@ -272,6 +295,9 @@ export function isLineShape(shape: Shape): boolean;
 export function isMergeField(field: Field): boolean;
 
 // @public
+export function isMetafileMimeType(mimeType: string | undefined): boolean;
+
+// @public
 export function isPageNumberField(field: Field): boolean;
 
 // @public
@@ -303,6 +329,9 @@ export function isTotalPagesField(field: Field): boolean;
 
 // @public
 export const KNOWN_FIELD_TYPES: FieldType[];
+
+// @public
+export type MediaResolver = (file: MediaFile) => Promise<string | null | undefined>;
 
 // @public
 export function mergeTabStops(styleTabs: TabStop[] | undefined, directTabs: TabStop[] | undefined): TabStop[];
@@ -355,6 +384,9 @@ export function parseFieldType(instruction: string): FieldType;
 export function parseFloatingTableProperties(tblpPrElement: Element_2 | null): FloatingTableProperties | undefined;
 
 // @public
+export function parseFontTable(fontTableXml: string | null | undefined): FontTable;
+
+// @public
 export function parseFootnoteProperties(element: Element_2 | null): FootnoteProperties;
 
 // @public
@@ -368,6 +400,16 @@ export function parseImage(node: Element_2, rels: RelationshipMap | undefined, m
 
 // @public
 export function parseNumbering(numberingXml: string | null): NumberingMap;
+
+// @public
+export interface ParseOptions {
+    detectVariables?: boolean;
+    mediaResolver?: MediaResolver;
+    onProgress?: ProgressCallback;
+    parseHeadersFooters?: boolean;
+    parseNotes?: boolean;
+    preloadFonts?: boolean;
+}
 
 // @public
 export function parseShading(shdElement: Element_2 | null): ShadingProperties | undefined;
@@ -413,6 +455,9 @@ export function parseTextBoxFromShape(wsp: Element_2, size: ImageSize, position?
 
 // @public
 export function pixelsToEmu(px: number): number;
+
+// @public
+export type ProgressCallback = (stage: string, percent: number) => void;
 
 // @public
 export function renderListMarker(lvlText: string, counters: number[], formats: NumberFormat[]): string;

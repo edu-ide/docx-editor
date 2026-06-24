@@ -154,6 +154,12 @@ export interface ToolbarProps {
    * An empty array renders an empty (but enabled) dropdown.
    */
   fontFamilies?: ReadonlyArray<string | FontOption>;
+  /**
+   * Fonts the loaded document references that the browser can render (embedded
+   * faces + system-resolved). Rendered in a "Document fonts" group, deduped
+   * against `fontFamilies`. Managed by the editor, not a consumer prop.
+   */
+  documentFonts?: readonly FontOption[];
   /** Whether to show font size picker (default: true) */
   showFontSizePicker?: boolean;
   /** Whether to show text color picker (default: true) */
@@ -190,10 +196,16 @@ export interface ToolbarProps {
   onInsertTable?: (rows: number, columns: number) => void;
   /** Whether to show table insert button (default: true) */
   showTableInsert?: boolean;
+  /** Whether to show the Help menu in the menu bar (default: true) */
+  showHelpMenu?: boolean;
   /** Callback when user wants to insert an image */
   onInsertImage?: () => void;
   /** Callback when user wants to insert a page break */
   onInsertPageBreak?: () => void;
+  /** Callback when user wants to insert a "next page" section break */
+  onInsertSectionBreakNextPage?: () => void;
+  /** Callback when user wants to insert a "continuous" section break */
+  onInsertSectionBreakContinuous?: () => void;
   /** Callback when user wants to insert a table of contents */
   onInsertTOC?: () => void;
   /** Callback when user wants to insert a shape */
@@ -289,7 +301,9 @@ export function ToolbarButton({
     title
       ?.toLowerCase()
       .replace(/\s+/g, '-')
-      .replace(/\([^)]*\)/g, '')
+      // `[^()]` (not `[^)]`) so the run can't span unmatched `(` and
+      // backtrack quadratically on a long parenthesis-heavy title.
+      .replace(/\([^()]*\)/g, '')
       .trim();
 
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -301,11 +315,13 @@ export function ToolbarButton({
       variant="ghost"
       size="icon-sm"
       className={cn(
-        'text-slate-500 hover:text-slate-900 hover:bg-slate-100/80',
-        active && 'bg-slate-900 text-white hover:bg-slate-800 hover:text-white',
+        // Hover + active states live in editor.css (.ep-toolbar-toggle); see
+        // that rule for why they're not Tailwind utilities here.
+        'ep-toolbar-toggle text-muted-foreground',
         disabled && 'opacity-30 cursor-not-allowed',
         className
       )}
+      data-active={active ? 'true' : undefined}
       onMouseDown={handleMouseDown}
       onClick={disabled ? undefined : onClick}
       disabled={disabled}
@@ -331,7 +347,7 @@ export function ToolbarGroup({ label, children, className }: ToolbarGroupProps) 
   return (
     <div
       className={cn(
-        'flex items-center gap-px px-1.5 border-r border-slate-200/50 last:border-r-0 first:pl-0',
+        'flex items-center gap-px px-1.5 border-r border-border/50 last:border-r-0 first:pl-0',
         className
       )}
       role="group"
@@ -346,7 +362,7 @@ export function ToolbarGroup({ label, children, className }: ToolbarGroupProps) 
  * Toolbar separator
  */
 export function ToolbarSeparator() {
-  return <div className="w-px h-6 bg-slate-200 mx-1.5" role="separator" />;
+  return <div className="w-px h-6 bg-border mx-1.5" role="separator" />;
 }
 
 // ============================================================================
@@ -398,6 +414,7 @@ export function Toolbar(explicitProps: ToolbarProps) {
     children,
     showFontPicker = true,
     fontFamilies,
+    documentFonts,
     showFontSizePicker = true,
     showTextColorPicker = true,
     showHighlightColorPicker = true,
@@ -661,7 +678,7 @@ export function Toolbar(explicitProps: ToolbarProps) {
       ref={barRef}
       className={cn(
         !inline &&
-          'flex items-center px-2 py-1 bg-[#f1f5f9] rounded-full min-h-[36px] overflow-x-auto mx-2 mb-1',
+          'flex items-center px-2 py-1 bg-muted rounded-full min-h-[36px] overflow-x-auto mx-2 mb-1',
         className
       )}
       style={inline ? { display: 'contents', ...style } : style}
@@ -694,15 +711,7 @@ export function Toolbar(explicitProps: ToolbarProps) {
       {/* Zoom Control */}
       {showZoomControl && (
         <ToolbarGroup label={t('formattingBar.groups.zoom')}>
-          <ZoomControl
-            value={zoom}
-            onChange={onZoomChange}
-            minZoom={0.5}
-            maxZoom={2}
-            disabled={disabled}
-            compact
-            showButtons={false}
-          />
+          <ZoomControl value={zoom} onChange={onZoomChange} disabled={disabled} compact />
         </ToolbarGroup>
       )}
 
@@ -728,6 +737,7 @@ export function Toolbar(explicitProps: ToolbarProps) {
               value={currentFormatting.fontFamily || 'Arial'}
               onChange={handleFontFamilyChange}
               fonts={normalizedFonts}
+              documentFonts={documentFonts}
               disabled={disabled}
               width={60}
               placeholder="Arial"

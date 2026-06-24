@@ -155,7 +155,7 @@ export function buildSelectionContext(doc: Document_2, range: Range_2, options?:
 // @public
 export function calculateFootnoteReservedHeights(pageFootnoteMap: Map<number, number[]>, footnoteContentMap: Map<number, {
     height: number;
-}>): Map<number, number>;
+}>, columns?: number): Map<number, number>;
 
 // @public
 export function canRenderFont(fontFamily: string, fallbackFont?: string): boolean;
@@ -206,10 +206,7 @@ export interface ClipboardSelection {
 }
 
 // @public
-export function collectFootnoteRefs(blocks: FlowBlock[]): Array<{
-    footnoteId: number;
-    pmPos: number;
-}>;
+export function collectFootnoteRefs(blocks: FlowBlock[]): FootnoteRefLocation[];
 
 // @public
 export function colorsEqual(color1: ColorValue | undefined | null, color2: ColorValue | undefined | null, theme: Theme | null | undefined): boolean;
@@ -654,10 +651,24 @@ export type FootnoteContent = {
 };
 
 // @public
+export type FootnoteRefLocation = {
+    footnoteId: number;
+    pmPos: number;
+    tableBlockId?: BlockId;
+    rowIndex?: number;
+};
+
+// @public
 export function footnoteReservedHeightsEqual(a: Map<number, number>, b: Map<number, number>): boolean;
 
 // @public
 export function formatLastSaveTime(date: Date | null): string;
+
+// @public (undocumented)
+export function formatPageRange(range: {
+    start: number;
+    end: number;
+} | null, totalPages: number): string;
 
 // @public
 export function formatPx(px: number): string;
@@ -690,6 +701,9 @@ export function getAutoSaveStorageSize(storageKey?: string): number;
 
 // @public
 export function getContrastingColor(backgroundColor: ColorValue | undefined | null, theme: Theme | null | undefined): string;
+
+// @public (undocumented)
+export function getDefaultPrintOptions(): PrintOptions;
 
 // @public
 export function getDocumentSummary(doc: Document_2): string;
@@ -724,6 +738,7 @@ export interface HeaderFooter {
     hdrFtrType: HeaderFooterType;
     // (undocumented)
     type: 'header' | 'footer';
+    verbatimXml?: string;
     watermark?: Watermark;
 }
 
@@ -897,10 +912,16 @@ export function isFontLoaded(fontFamily: string): boolean;
 export function isFontsLoading(): boolean;
 
 // @public
+export function isGoogleFontsEnabled(): boolean;
+
+// @public
 export function isLineBreak(content: RunContent): boolean;
 
 // @public
 export function isPageBreak(content: RunContent): boolean;
+
+// @public (undocumented)
+export function isPrintSupported(): boolean;
 
 // @public
 export function isValidVariableName(name: string): boolean;
@@ -985,6 +1006,7 @@ export function loadFont(fontFamily: string, options?: {
 // @public
 export function loadFontFromBuffer(fontFamily: string, buffer: ArrayBuffer, options?: {
     weight?: number | string;
+    style?: 'normal' | 'italic';
 }): Promise<boolean>;
 
 // @public
@@ -994,10 +1016,7 @@ export function loadFonts(families: string[], options?: {
 }): Promise<void>;
 
 // @public
-export function mapFootnotesToPages(pages: Page[], footnoteRefs: Array<{
-    footnoteId: number;
-    pmPos: number;
-}>): Map<number, number[]>;
+export function mapFootnotesToPages(pages: Page[], footnoteRefs: FootnoteRefLocation[]): Map<number, number[]>;
 
 // @public
 export const MAX_FOOTNOTE_LAYOUT_PASSES = 6;
@@ -1059,6 +1078,9 @@ export interface NumberingDefinitions {
 export function onFontsLoaded(callback: (fonts: string[]) => void): () => void;
 
 // @public
+export function openPrintWindow(title: string | undefined, content: string): Window | null;
+
+// @public
 export type Page = {
     number: number;
     fragments: Fragment[];
@@ -1079,6 +1101,7 @@ export type Page = {
     };
     footnoteIds?: number[];
     footnoteReservedHeight?: number;
+    footnoteColumns?: number;
     columns?: ColumnLayout;
 };
 
@@ -1097,6 +1120,7 @@ export interface PanelConfig {
 export interface Paragraph {
     content: ParagraphContent[];
     formatting?: ParagraphFormatting;
+    leadingBlockMarkers?: (BookmarkStart | BookmarkEnd)[];
     listRendering?: ListRendering;
     paraId?: string;
     pPrDel?: TrackedChangeInfo;
@@ -1105,6 +1129,7 @@ export interface Paragraph {
     renderedPageBreakBefore?: boolean;
     sectionProperties?: SectionProperties;
     textId?: string;
+    trailingBlockMarkers?: (BookmarkStart | BookmarkEnd)[];
     // (undocumented)
     type: 'paragraph';
 }
@@ -1158,6 +1183,10 @@ export interface ParagraphFormatting {
         numId?: number;
         ilvl?: number;
     };
+    numPrFromStyle?: {
+        numId?: number;
+        ilvl?: number;
+    };
     outlineLevel?: number;
     pageBreakBefore?: boolean;
     runProperties?: TextFormatting;
@@ -1177,6 +1206,12 @@ export function parseColorString(colorString: string | undefined): ColorValue | 
 
 // @public
 export function parseDocx(input: DocxInput, options?: ParseOptions): Promise<Document_2>;
+
+// @public
+export function parsePageRange(input: string, maxPages: number): {
+    start: number;
+    end: number;
+} | null;
 
 // @public
 export function parseVariable(variable: string): string | null;
@@ -1280,6 +1315,27 @@ export interface PositionCoordinates {
 
 // @public
 export function preloadCommonFonts(): Promise<void>;
+
+// @public
+export interface PrintOptions {
+    // (undocumented)
+    includeFooters?: boolean;
+    // (undocumented)
+    includeHeaders?: boolean;
+    // (undocumented)
+    includePageNumbers?: boolean;
+    // (undocumented)
+    margins?: 'default' | 'none' | 'minimum';
+    // (undocumented)
+    pageRange?: {
+        start: number;
+        end: number;
+    } | null;
+    // (undocumented)
+    printBackground?: boolean;
+    // (undocumented)
+    scale?: number;
+}
 
 // @public
 export function processTemplate(buffer: ArrayBuffer, variables: Record<string, string>, options?: ProcessTemplateOptions): ArrayBuffer;
@@ -1429,6 +1485,7 @@ export interface SectionProperties {
     evenAndOddHeaders?: boolean;
     footerDistance?: number;
     footerReferences?: FooterReference[];
+    footnoteColumns?: number;
     footnotePr?: FootnoteProperties;
     gutter?: number;
     headerDistance?: number;
@@ -1510,6 +1567,9 @@ export function serializeDocx(doc: Document_2): string;
 export function serializeSectionProperties(props: SectionProperties | undefined): string;
 
 // @public
+export function setGoogleFontsEnabled(enabled: boolean): void;
+
+// @public
 export interface SetVariableCommand extends BaseCommand {
     name: string;
     // (undocumented)
@@ -1541,13 +1601,11 @@ export function stabilizeFootnoteLayout(args: StabilizeFootnoteLayoutArgs): Stab
 export interface StabilizeFootnoteLayoutArgs {
     // (undocumented)
     blocks: FlowBlock[];
+    footnoteColumns?: number;
     // (undocumented)
     footnoteContentMap: Map<number, FootnoteContent>;
     // (undocumented)
-    footnoteRefs: Array<{
-        footnoteId: number;
-        pmPos: number;
-    }>;
+    footnoteRefs: FootnoteRefLocation[];
     initialLayout: Layout;
     // (undocumented)
     layoutOpts: LayoutOptions;
@@ -1629,8 +1687,10 @@ export interface SuggestedAction {
 export interface Table {
     columnWidths?: number[];
     formatting?: TableFormatting;
+    leadingBlockMarkers?: (BookmarkStart | BookmarkEnd)[];
     propertyChanges?: TablePropertyChange[];
     rows: TableRow[];
+    trailingBlockMarkers?: (BookmarkStart | BookmarkEnd)[];
     // (undocumented)
     type: 'table';
 }
@@ -1816,6 +1876,9 @@ export interface TrackedChangeInfo {
 
 // @public
 export type TrackedRunChange = Insertion | Deletion | MoveFrom | MoveTo;
+
+// @public
+export function triggerPrint(): void;
 
 // @public
 export function twipsToEmu(twips: number): number;

@@ -18,6 +18,7 @@ import {
   acceptChangeById,
   rejectChangeById,
 } from '@eigenpal/docx-editor-core/prosemirror/commands';
+import { extractTrackedChanges } from '@eigenpal/docx-editor-core/prosemirror/utils/extractTrackedChanges';
 import {
   addCommentToRange,
   applyProposedChange,
@@ -62,6 +63,8 @@ export interface UseCommentManagementOptions {
   author?: MaybeRef<string>;
   /** Host-facing comment lifecycle callbacks (the `onComment*` props). */
   commentCallbacks?: CommentCallbacks;
+  /** Get all active header/footer ProseMirror EditorViews. */
+  getHfPmViews?: () => Map<string, EditorView>;
 }
 
 export function useCommentManagement(opts: UseCommentManagementOptions) {
@@ -212,7 +215,25 @@ export function useCommentManagement(opts: UseCommentManagementOptions) {
   }
 
   function handleAcceptChangeById(revisionId: number) {
-    const view = opts.editorView.value;
+    const hfViews = opts.getHfPmViews?.();
+    let targetView = null;
+    if (hfViews) {
+      for (const view of hfViews.values()) {
+        const { entries } = extractTrackedChanges(view.state);
+        if (
+          entries.some(
+            (e) =>
+              e.revisionId === revisionId ||
+              e.insertionRevisionId === revisionId ||
+              e.coalescedRevisionIds?.includes(revisionId)
+          )
+        ) {
+          targetView = view;
+          break;
+        }
+      }
+    }
+    const view = targetView || opts.editorView.value;
     if (!view) return;
     acceptChangeById(revisionId)(view.state, view.dispatch);
     opts.extractCommentsAndChanges();
@@ -220,47 +241,46 @@ export function useCommentManagement(opts: UseCommentManagementOptions) {
   }
 
   function handleRejectChangeById(revisionId: number) {
-    const view = opts.editorView.value;
+    const hfViews = opts.getHfPmViews?.();
+    let targetView = null;
+    if (hfViews) {
+      for (const view of hfViews.values()) {
+        const { entries } = extractTrackedChanges(view.state);
+        if (
+          entries.some(
+            (e) =>
+              e.revisionId === revisionId ||
+              e.insertionRevisionId === revisionId ||
+              e.coalescedRevisionIds?.includes(revisionId)
+          )
+        ) {
+          targetView = view;
+          break;
+        }
+      }
+    }
+    const view = targetView || opts.editorView.value;
     if (!view) return;
     rejectChangeById(revisionId)(view.state, view.dispatch);
     opts.extractCommentsAndChanges();
     view.focus();
   }
 
+  // Thread a reply under a tracked change. Mirrors React's
+  // onTrackedChangeReply (DocxEditor.tsx): the reply is a child comment
+  // keyed by `parentId = revisionId`, NOT an independently anchored
+  // comment. No comment mark is added — the sidebar groups replies by
+  // parentId (useCommentSidebarItems) and the card already anchors at the
+  // change's own position, so a mark would only pollute the document with
+  // a dangling range that has no top-level card.
   function handleTrackedChangeReply(revisionId: number, text: string) {
     const doc = opts.getDocument();
-    const view = opts.editorView.value;
-    if (!doc?.package?.document || !view) return;
+    if (!doc?.package?.document) return;
     if (!doc.package.document.comments) doc.package.document.comments = [];
-    const commentMark = view.state.schema.marks.comment;
-    if (!commentMark) return;
 
-    // Find first PM position covered by this revision so the reply
-    // comment anchors to the same spot as the tracked change.
-    let anchorPos: number | null = null;
-    const insType = view.state.schema.marks.insertion;
-    const delType = view.state.schema.marks.deletion;
-    view.state.doc.descendants((node, pos) => {
-      if (anchorPos !== null) return false;
-      for (const mark of node.marks) {
-        if (
-          (mark.type === insType || mark.type === delType) &&
-          mark.attrs.revisionId === revisionId
-        ) {
-          anchorPos = pos;
-          return false;
-        }
-      }
-      return true;
-    });
-    if (anchorPos === null) return;
-
-    const comment = createComment(text, resolveAuthor());
+    const comment = createComment(text, resolveAuthor(), revisionId);
     doc.package.document.comments.push(comment);
     commitComments([...doc.package.document.comments]);
-    const from = anchorPos;
-    const to = Math.min(from + 1, view.state.doc.content.size);
-    view.dispatch(view.state.tr.addMark(from, to, commentMark.create({ commentId: comment.id })));
     opts.emit('change', doc);
   }
 

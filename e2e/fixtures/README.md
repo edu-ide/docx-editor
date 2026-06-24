@@ -87,6 +87,12 @@ A synthetic document containing a table whose middle row is made entirely of
 `w:vMerge` continuation cells. Used to verify that DOCX import does not produce
 an invalid empty ProseMirror `tableRow`.
 
+### table-cell-selection-drag.docx
+
+A synthetic document containing a simple table with generic sample text. Used to
+verify precise drag selection inside a single table cell without promoting the
+selection to the whole cell.
+
 ### toc-hyperlink-tabs.docx
 
 A synthetic document with one TOC1 paragraph wrapping
@@ -94,6 +100,14 @@ A synthetic document with one TOC1 paragraph wrapping
 its right-aligned dot-leader tab stop. Used to verify that tabs inside
 hyperlinks survive parsing and that TOC entries render with dot leaders and
 right-aligned page numbers like Word.
+
+### inline-checkbox-controls.docx
+
+A synthetic document with inline Word checkbox content controls
+(`w14:checkbox`) covering unchecked, checked, untagged, locked, data-bound, and
+plain-text fallback cases. Used to verify that docx-editor paints the existing
+Word glyph in flow while exposing only unlocked/unbound controls as clickable
+editor widgets.
 
 ## Generating Fixtures
 
@@ -105,7 +119,9 @@ bun scripts/create-issue-472-floating-textbox-fixture.mjs
 bun scripts/create-footnote-bottom-overflow-fixture.mjs
 bun scripts/create-footnote-overlap-regression-fixture.mjs
 bun scripts/create-empty-table-row-vmerge-fixture.mjs
+bun scripts/create-table-cell-selection-drag-fixture.mjs
 bun scripts/create-toc-hyperlink-fixture.mjs
+bun scripts/create-inline-checkbox-controls-fixture.mjs e2e/fixtures/inline-checkbox-controls.docx
 ```
 
 Or manually create them using Microsoft Word or another DOCX editor.

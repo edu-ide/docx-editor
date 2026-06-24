@@ -227,6 +227,17 @@ export type ImageRunPosition = {
 };
 
 // @public
+export interface InlineSdtWidget {
+    alias?: string;
+    checked?: boolean;
+    groupId: string;
+    // (undocumented)
+    kind: 'checkbox';
+    pos: number;
+    tag?: string;
+}
+
+// @public
 export type Layout = {
     pageSize: {
         w: number;
@@ -326,6 +337,7 @@ export type Page = {
     };
     footnoteIds?: number[];
     footnoteReservedHeight?: number;
+    footnoteColumns?: number;
     columns?: ColumnLayout;
 };
 
@@ -392,6 +404,7 @@ export type ParagraphBlock = {
     sdtGroups?: SdtGroup[];
     kind: 'paragraph';
     id: BlockId;
+    paraId?: string;
     runs: Run[];
     attrs?: ParagraphAttrs;
     pmStart?: number;
@@ -538,6 +551,7 @@ export type TableBlock = {
     width?: number;
     widthType?: string;
     justification?: 'left' | 'center' | 'right';
+    bidi?: boolean;
     indent?: number;
     floating?: FloatingTablePosition;
     pmStart?: number;
@@ -686,6 +700,7 @@ export type TextRun = RunFormatting & {
     hyperlink?: HyperlinkInfo;
     pmStart?: number;
     pmEnd?: number;
+    inlineSdtWidget?: InlineSdtWidget;
 };
 
 // @public (undocumented)

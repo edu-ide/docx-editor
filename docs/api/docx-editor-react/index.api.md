@@ -22,12 +22,13 @@ import { FontOption } from '@eigenpal/docx-editor-core/utils/fontOptions';
 import { HeaderFooter } from '@eigenpal/docx-editor-core/types/document';
 import { Layout } from '@eigenpal/docx-editor-core/layout-engine';
 import { PMContentControl } from '@eigenpal/docx-editor-core/prosemirror';
+import { PrintOptions } from '@eigenpal/docx-editor-core';
 import * as prosemirror_state from 'prosemirror-state';
 import * as prosemirror_view from 'prosemirror-view';
 import * as React_2 from 'react';
-import * as react_jsx_runtime from 'react/jsx-runtime';
 import { ReactNode } from 'react';
 import { RenderedDomContext } from '@eigenpal/docx-editor-core/plugin-api';
+import { ScrollToParaIdOptions } from '@eigenpal/docx-editor-core/utils';
 import { SelectionState } from '@eigenpal/docx-editor-core/prosemirror';
 import { SidebarItem } from '@eigenpal/docx-editor-core/plugin-api';
 import { TFunction } from '@eigenpal/docx-editor-i18n';
@@ -46,7 +47,7 @@ export const DocxEditor: React_2.ForwardRefExoticComponent<DocxEditorProps & Rea
 
 // @public
 export interface DocxEditorHandle extends EditorHandle {
-    scrollToParaId: (paraId: string) => boolean;
+    scrollToParaId: (paraId: string, options?: ScrollToParaIdOptions) => boolean;
     scrollToPosition: (pmPos: number) => void;
     setZoom: (zoom: number) => void;
 }
@@ -56,7 +57,9 @@ export interface DocxEditorProps {
     agentPanel?: AgentPanelOptions;
     author?: string;
     className?: string;
+    colorMode?: 'light' | 'dark' | 'system';
     comments?: Comment_2[];
+    commentsSidebarOpen?: boolean;
     disableFindReplaceShortcuts?: boolean;
     document?: Document_2 | null;
     documentBuffer?: DocxInput | null;
@@ -77,6 +80,7 @@ export interface DocxEditorProps {
     onCommentReply?: (reply: Comment_2, parent: Comment_2) => void;
     onCommentResolve?: (comment: Comment_2) => void;
     onCommentsChange?: (comments: Comment_2[]) => void;
+    onCommentsSidebarOpenChange?: (open: boolean) => void;
     onCopy?: () => void;
     onCut?: () => void;
     onDocumentNameChange?: (name: string) => void;
@@ -84,6 +88,7 @@ export interface DocxEditorProps {
     onError?: (error: Error) => void;
     onFontsLoaded?: () => void;
     onModeChange?: (mode: EditorMode) => void;
+    onOpen?: (file: File) => void | Promise<void>;
     onPaste?: () => void;
     onPrint?: () => void;
     onRenderedDomContextReady?: (context: RenderedDomContext) => void;
@@ -98,6 +103,8 @@ export interface DocxEditorProps {
     renderLogo?: () => ReactNode;
     renderTitleBarRight?: () => ReactNode;
     rulerUnit?: 'inch' | 'cm';
+    showFileOpen?: boolean;
+    showHelpMenu?: boolean;
     showMarginGuides?: boolean;
     showOutline?: boolean;
     showOutlineButton?: boolean;
@@ -107,6 +114,7 @@ export interface DocxEditorProps {
     style?: CSSProperties;
     theme?: Theme | null;
     toolbarExtra?: ReactNode;
+    watermarkPresets?: readonly string[];
 }
 
 // @public
@@ -173,6 +181,11 @@ export interface DocxEditorRef {
     } | null;
     getTotalPages: () => number;
     getZoom: () => number;
+    highlightRange: (from: number, to: number) => void;
+    insertBreak: (options: {
+        paraId: string;
+        type: 'page' | 'sectionNextPage' | 'sectionContinuous';
+    }) => boolean;
     loadDocument: (doc: Document_2) => void;
     loadDocumentBuffer: (buffer: DocxInput) => Promise<void>;
     onContentChange: (listener: (document: Document_2) => void) => () => void;
@@ -194,9 +207,11 @@ export interface DocxEditorRef {
     save: (options?: {
         selective?: boolean;
     }) => Promise<ArrayBuffer | null>;
+    scrollToChangeId: (revisionId: number) => boolean;
+    scrollToCommentId: (commentId: number) => boolean;
     scrollToContentControl: (filter: ContentControlFilter) => boolean;
     scrollToPage: (pageNumber: number) => void;
-    scrollToParaId: (paraId: string) => boolean;
+    scrollToParaId: (paraId: string, options?: ScrollToParaIdOptions) => boolean;
     scrollToPosition: (pmPos: number) => void;
     setContentControlContent: (filter: ContentControlFilter, text: string, options?: {
         force?: boolean;
@@ -215,7 +230,7 @@ export interface DocxEditorRef {
 export type EditorMode = 'editing' | 'suggesting' | 'viewing';
 
 // @public (undocumented)
-export function LocaleProvider(input: LocaleProviderProps): react_jsx_runtime.JSX.Element;
+export function LocaleProvider(input: LocaleProviderProps): React_2.JSX.Element;
 
 // @public (undocumented)
 export interface LocaleProviderProps {

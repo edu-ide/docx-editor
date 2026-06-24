@@ -32,7 +32,7 @@ import {
   type XmlElement,
 } from './xmlParser';
 import { parseRun } from './runParser';
-import { isExternalHyperlink } from './relsParser';
+import { sanitizeHref } from '../utils/sanitizeHref';
 
 // ============================================================================
 // HYPERLINK PARSER
@@ -119,13 +119,7 @@ export function parseHyperlink(
     if (rels) {
       const rel = rels.get(rId);
       if (rel) {
-        // External hyperlinks have TargetMode="External" and target is the URL
-        if (isExternalHyperlink(rel)) {
-          hyperlink.href = rel.target;
-        } else {
-          // Internal document link (to another part of the DOCX)
-          hyperlink.href = rel.target;
-        }
+        hyperlink.href = sanitizeHref(rel.target);
       }
     }
   }
@@ -301,11 +295,7 @@ export function resolveHyperlinkUrl(
   if (hyperlink.rId) {
     const rel = rels.get(hyperlink.rId);
     if (rel) {
-      if (isExternalHyperlink(rel)) {
-        hyperlink.href = rel.target;
-      } else {
-        hyperlink.href = rel.target;
-      }
+      hyperlink.href = sanitizeHref(rel.target);
       return hyperlink.href;
     }
   }

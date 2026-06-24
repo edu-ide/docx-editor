@@ -42,7 +42,10 @@
     "symbol": "Symbole",
     "help": "Aide",
     "reportIssue": "Signaler un bug",
-    "watermark": "Filigrane"
+    "watermark": "Filigrane",
+    "break": null,
+    "sectionBreakContinuous": null,
+    "sectionBreakNextPage": null
   },
   "formattingBar": {
     "groups": {
@@ -122,7 +125,8 @@
     "sansSerif": "Sans Serif",
     "serif": "Serif",
     "monospace": "Monospace",
-    "other": null
+    "other": null,
+    "documentFonts": null
   },
   "fontSize": {
     "decrease": "Diminuer la taille de la police",
@@ -688,7 +692,8 @@
       "listTable4Accent3": "Grille de tableau 4 Accent 3",
       "gridTable4Accent5": "Grille de tableau 4 Accent 5",
       "gridTable4Accent6": "Grille de tableau 4 Accent 6"
-    }
+    },
+    "selectTable": null
   },
   "tableAdvanced": {
     "verticalAlignment": "Alignement vertical",

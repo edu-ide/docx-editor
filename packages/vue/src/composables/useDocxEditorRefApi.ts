@@ -19,6 +19,10 @@ import type { EditorView } from 'prosemirror-view';
 import type { Document } from '@eigenpal/docx-editor-core/types/document';
 import type { Comment } from '@eigenpal/docx-editor-core/types/content';
 import type { DocxInput } from '@eigenpal/docx-editor-core/utils';
+import {
+  flashParagraphFragmentsByParaId,
+  type ScrollToParaIdOptions,
+} from '@eigenpal/docx-editor-core/utils';
 import type { Layout } from '@eigenpal/docx-editor-core/layout-engine';
 import { findPageIndexContainingPmPos } from '@eigenpal/docx-editor-core/layout-engine';
 import { renderAllPagesNow } from '@eigenpal/docx-editor-core/layout-painter';
@@ -41,6 +45,12 @@ import {
   getPageContent as getPageContentImpl,
 } from '../utils/refApiQueries';
 import { findParaIdRange } from '@eigenpal/docx-editor-core/prosemirror/paraText';
+import {
+  findCommentRange,
+  findChangeRange,
+  clampRangeToDoc,
+} from '@eigenpal/docx-editor-core/prosemirror/queries';
+import { TextSelection } from 'prosemirror-state';
 import type { DocxEditorRef } from '../components/DocxEditor/types';
 import type { ApplyFormattingOptions } from './useFormattingActions';
 
@@ -76,6 +86,10 @@ export interface UseDocxEditorRefApiOptions {
   }) => boolean;
   applyFormatting: (options: ApplyFormattingOptions) => boolean;
   setParagraphStyle: (options: { paraId: string; styleId: string }) => boolean;
+  insertBreak: (options: {
+    paraId: string;
+    type: 'page' | 'sectionNextPage' | 'sectionContinuous';
+  }) => boolean;
   scrollVisiblePositionIntoView: (pmPos: number) => void;
   // Subscriber sets (used by onContentChange / onSelectionChange)
   contentChangeSubscribers: Set<(document: unknown) => void>;
@@ -145,12 +159,20 @@ export function useDocxEditorRefApi(opts: UseDocxEditorRefApiOptions): {
     return pageIndex == null ? 0 : pageIndex + 1;
   }
 
-  function scrollToParaId(paraId: string): boolean {
+  function scrollToParaId(paraId: string, options?: ScrollToParaIdOptions): boolean {
     const view = opts.editorView.value;
     if (!view) return false;
     const range = findParaIdRange(view.state.doc, paraId);
     if (!range) return false;
     opts.scrollVisiblePositionIntoView(range.from + 1);
+    if (options?.highlight) {
+      const flashPara = () => {
+        const pages = opts.pagesRef.value;
+        if (pages) flashParagraphFragmentsByParaId(pages, paraId, options.highlight);
+      };
+      flashPara();
+      requestAnimationFrame(() => requestAnimationFrame(flashPara));
+    }
     return true;
   }
 
@@ -177,6 +199,44 @@ export function useDocxEditorRefApi(opts: UseDocxEditorRefApiOptions): {
     const pos = findContentControlPos(view.state.doc, filter);
     if (pos == null) return false;
     scrollToPosition(pos);
+    return true;
+  }
+
+  // Select `[from, to]` so the selection overlay highlights it, then scroll the
+  // start into view. Shared by the three location-reveal methods below; mirrors
+  // React's hiddenPM.setSelection + paraId-scroll path.
+  function selectAndReveal(view: EditorView, from: number, to: number): void {
+    const sel = TextSelection.between(view.state.doc.resolve(from), view.state.doc.resolve(to));
+    view.dispatch(view.state.tr.setSelection(sel));
+    opts.scrollVisiblePositionIntoView(from);
+  }
+
+  function highlightRange(from: number, to: number): void {
+    const view = opts.editorView.value;
+    if (!view) return;
+    // Raw caller positions: clampRangeToDoc returns null for a malformed or
+    // out-of-range request (no-op) and clamps `to` to the document size so
+    // doc.resolve() can't throw.
+    const range = clampRangeToDoc(view.state.doc, from, to);
+    if (!range) return;
+    selectAndReveal(view, range.from, range.to);
+  }
+
+  function scrollToCommentId(commentId: number): boolean {
+    const view = opts.editorView.value;
+    if (!view) return false;
+    const range = findCommentRange(view, commentId);
+    if (!range) return false;
+    selectAndReveal(view, range.from, range.to);
+    return true;
+  }
+
+  function scrollToChangeId(revisionId: number): boolean {
+    const view = opts.editorView.value;
+    if (!view) return false;
+    const range = findChangeRange(view, revisionId);
+    if (!range) return false;
+    selectAndReveal(view, range.from, range.to);
     return true;
   }
 
@@ -262,6 +322,9 @@ export function useDocxEditorRefApi(opts: UseDocxEditorRefApiOptions): {
     resolveComment: opts.resolveComment,
     proposeChange: opts.proposeChange,
     scrollToParaId,
+    scrollToCommentId,
+    scrollToChangeId,
+    highlightRange,
     findInDocument,
     getSelectionInfo,
     getComments,
@@ -272,6 +335,7 @@ export function useDocxEditorRefApi(opts: UseDocxEditorRefApiOptions): {
     setContentControlValue,
     applyFormatting: opts.applyFormatting,
     setParagraphStyle: opts.setParagraphStyle,
+    insertBreak: opts.insertBreak,
     getPageContent,
     getTotalPages,
     getCurrentPage,

@@ -1,5 +1,50 @@
 # @eigenpal/docx-editor-agents
 
+## 1.10.0
+
+## 1.9.0
+
+## 1.8.3
+
+## 1.8.2
+
+## 1.8.1
+
+## 1.8.0
+
+### Patch Changes
+
+- 274e45f: `applyReview` now reports when a batch accept/reject id is note-resident. An id that lives only inside a footnote or endnote previously surfaced as a bare "Tracked change not found", giving no hint the id exists but isn't body-mutable here. It now returns a message saying the change is inside a footnote/endnote and must be resolved through the note-targeting accept/reject API. Batch ids stay document-body-scoped — this sharpens the error only and is fully backward-compatible (the new note stores are passed internally and optional).
+
+## 1.7.0
+
+### Patch Changes
+
+- 2dedf30: The agent bridge now re-exports the paragraph-flash option types (`ParagraphHighlightOptions`, `ScrollToParaIdOptions`) from `@eigenpal/docx-editor-core` instead of redeclaring them, so the two definitions can't drift. No change to the public API surface.
+- 6b1897a: Fix `DocxReviewer.getChanges()` dropping a tracked change when two changes in different paragraphs share a revision id (Word reuses `w:id` across paragraphs), which made the enumerated change list disagree with the count from `acceptAll`/`rejectAll`.
+
+## 1.6.2
+
+## 1.6.1
+
+### Patch Changes
+
+- 7c1d1ff: Reach paragraphs inside table cells from the headless review tools. `find_text`, `suggest_change`, and `add_comment` now locate and edit paragraphs in `w:tbl > w:tr > w:tc > w:p`, addressed by the same paraId / ordinal index as body paragraphs, so a tracked change can be authored inside a table cell.
+
+## 1.6.0
+
+### Minor Changes
+
+- a6a2dd0: Add an `insert_break` agent/MCP tool (and `bridge.insertBreak` / editor `insertBreak` ref method) so agents can insert a page break or a section break (next page / continuous) after a paragraph.
+
+## 1.5.0
+
+### Minor Changes
+
+- c4fd221: `DocxReviewer` can now accept/reject tracked changes inside footnote and endnote bodies. Pass a `ReviewChange` from `getChanges` (it carries `noteId`/`noteType`) to `acceptChange`/`rejectChange` to resolve a change wherever it lives, or use `acceptAll`/`rejectAll` with `{ includeFootnotes, includeEndnotes }` to resolve note changes in bulk. The result persists through `toBuffer()`. Previously these methods operated on the document body only; the numeric `acceptChange(id)` form is unchanged.
+
+## 1.4.0
+
 ## 1.3.3
 
 ## 1.3.2

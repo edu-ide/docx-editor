@@ -32,9 +32,9 @@ import type {
   MediaFile,
   StyleDefinitions,
 } from '../types/document';
-import { unzipDocx, getMediaMimeType, type RawDocxContent } from './unzip';
+import { unzipDocx, getMediaMimeType, mediaToDataUrl, type RawDocxContent } from './unzip';
 import { parseRelationships, RELATIONSHIP_TYPES } from './relsParser';
-import { parseTheme } from './themeParser';
+import { parseTheme, applyThemeFontLang } from './themeParser';
 import { parseStyles, parseStyleDefinitions, type StyleMap } from './styleParser';
 import { parseNumbering, type NumberingMap } from './numberingParser';
 import { parseSettings } from './settingsParser';
@@ -47,8 +47,13 @@ import {
   isSeparatorEndnote,
 } from './footnoteParser';
 import { parseComments } from './commentParser';
+import { removeOrphanCommentRanges } from './commentRangeIntegrity';
+import { dedupeParagraphIds } from './paragraphIdIntegrity';
 import { loadFontsWithMapping } from '../utils/fontLoader';
+import { loadEmbeddedFonts } from '../utils/embeddedFonts';
+import { parseFontTable } from './fontTableParser';
 import { type DocxInput, toArrayBuffer } from '../utils/docxInput';
+import { extractMetafileRaster, isMetafileMimeType } from './metafileRaster';
 
 // ============================================================================
 // PROGRESS CALLBACK
@@ -58,6 +63,17 @@ import { type DocxInput, toArrayBuffer } from '../utils/docxInput';
  * Progress callback for tracking parsing stages
  */
 export type ProgressCallback = (stage: string, percent: number) => void;
+
+/**
+ * Host hook for converting media the browser can't render natively
+ * (EMF/WMF/TIFF) into a displayable `data:` or `blob:` URL. Receives the
+ * parsed {@link MediaFile} (original bytes on `.data`); return the replacement
+ * URL, or `null`/`undefined` to keep the built-in handling. Built-in handling
+ * already extracts an embedded PNG/JPEG from EMF/WMF when one exists — this
+ * hook is for the residual case (vector-only metafiles) where the host wants
+ * to rasterize server-side.
+ */
+export type MediaResolver = (file: MediaFile) => Promise<string | null | undefined>;
 
 /**
  * Parsing options
@@ -73,6 +89,11 @@ export interface ParseOptions {
   parseNotes?: boolean;
   /** Whether to detect template variables (default: true) */
   detectVariables?: boolean;
+  /**
+   * Optional async hook to convert non-browser-renderable media (EMF/WMF/TIFF)
+   * to a displayable URL. See {@link MediaResolver}.
+   */
+  mediaResolver?: MediaResolver;
 }
 
 // ============================================================================
@@ -96,6 +117,7 @@ export async function parseDocx(input: DocxInput, options: ParseOptions = {}): P
     parseHeadersFooters = true,
     parseNotes = true,
     detectVariables = true,
+    mediaResolver,
   } = options;
 
   const warnings: string[] = [];
@@ -147,6 +169,11 @@ export async function parseDocx(input: DocxInput, options: ParseOptions = {}): P
     // ========================================================================
     onProgress('Parsing theme...', 15);
     const theme = timeStage('theme', () => parseTheme(raw.themeXml));
+    // Settings must be read before styles so `w:themeFontLang` can fill the
+    // theme's empty EastAsian/complex-script font slots; styles, body and
+    // header/footer parsing all resolve theme fonts off this object.
+    const settings = timeStage('settings', () => parseSettings(raw.settingsXml));
+    applyThemeFontLang(theme, settings.themeFontLang);
     onProgress('Parsed theme', 20);
 
     // ========================================================================
@@ -164,12 +191,14 @@ export async function parseDocx(input: DocxInput, options: ParseOptions = {}): P
     });
     onProgress('Parsed styles', 30);
 
+    // Parse the font table (font declarations + embedded-face references).
+    const fontTable = timeStage('fontTable', () => parseFontTable(raw.fontTableXml));
+
     // ========================================================================
     // STAGE 5: Parse numbering (30-35%)
     // ========================================================================
     onProgress('Parsing numbering...', 30);
     const numbering = timeStage('numbering', () => parseNumbering(raw.numberingXml));
-    const settings = timeStage('settings', () => parseSettings(raw.settingsXml));
     onProgress('Parsed numbering', 35);
 
     // ========================================================================
@@ -177,6 +206,9 @@ export async function parseDocx(input: DocxInput, options: ParseOptions = {}): P
     // ========================================================================
     onProgress('Processing media files...', 35);
     const media = timeStage('media', () => buildMediaMap(raw, rels));
+    if (mediaResolver) {
+      await timeStageAsync('mediaResolver', () => applyMediaResolver(media, mediaResolver));
+    }
     onProgress('Processed media', 40);
 
     // ========================================================================
@@ -274,6 +306,16 @@ export async function parseDocx(input: DocxInput, options: ParseOptions = {}): P
     if (preloadFonts) {
       onProgress('Loading fonts...', 80);
       await timeStageAsync('fonts', () => loadDocumentFonts(theme, styleDefinitions, documentBody));
+      // Register the document's own embedded fonts (de-obfuscated `.odttf`) so
+      // it renders in its authored faces rather than a substitute. No-op
+      // outside a DOM and when the file embeds no fonts. The returned
+      // successfully-loaded set is intentionally not threaded out: adapters
+      // surface every declared-embed family (getEmbeddedFontFamilies) so
+      // subsetted faces the canvas probe can't detect still appear in the
+      // picker. Per-face load failures are warned inside loadEmbeddedFonts.
+      await timeStageAsync('embeddedFonts', () =>
+        loadEmbeddedFonts(fontTable, raw.fonts, findFontTableRels(raw))
+      );
       onProgress('Loaded fonts', 95);
     } else {
       onProgress('Skipping font loading', 95);
@@ -290,6 +332,7 @@ export async function parseDocx(input: DocxInput, options: ParseOptions = {}): P
       theme,
       numbering: numbering.definitions,
       settings,
+      fontTable,
       headers,
       footers,
       footnotes,
@@ -306,6 +349,14 @@ export async function parseDocx(input: DocxInput, options: ParseOptions = {}): P
       templateVariables,
       warnings: warnings.length > 0 ? warnings : undefined,
     };
+
+    // Drop comment-range markers that don't resolve to a parsed comment, so the
+    // model never carries orphan anchors that Word/validators reject on export.
+    removeOrphanCommentRanges(document);
+
+    // Give every paragraph a unique w14:paraId; foreign exporters sometimes
+    // duplicate them, which Word flags as a collaboration-identity collision.
+    dedupeParagraphIds(document);
 
     const totalTime = performance.now() - parseStart;
     if (totalTime > 2000) {
@@ -332,6 +383,17 @@ export async function parseDocx(input: DocxInput, options: ParseOptions = {}): P
 // ============================================================================
 
 /**
+ * Locate `word/_rels/fontTable.xml.rels` in the unzipped package (case
+ * preserved in ZIP entries varies by producer, so match case-insensitively).
+ */
+function findFontTableRels(raw: RawDocxContent): string | null {
+  for (const [path, xml] of raw.allXml) {
+    if (path.toLowerCase() === 'word/_rels/fonttable.xml.rels') return xml;
+  }
+  return null;
+}
+
+/**
  * Build media file map from raw content and relationships
  */
 function buildMediaMap(raw: RawDocxContent, _rels: RelationshipMap): Map<string, MediaFile> {
@@ -342,14 +404,15 @@ function buildMediaMap(raw: RawDocxContent, _rels: RelationshipMap): Map<string,
     const filename = path.split('/').pop() || path;
     const mimeType = getMediaMimeType(path);
 
-    // Create a data URL for the image
-    const bytes = new Uint8Array(data);
-    let binary = '';
-    for (let i = 0; i < bytes.length; i++) {
-      binary += String.fromCharCode(bytes[i]);
-    }
-    const base64 = btoa(binary);
-    const dataUrl = `data:${mimeType};base64,${base64}`;
+    // EMF/WMF aren't browser-renderable. When the metafile wraps a raster
+    // (EMF+ bitmap record / StretchDIBits payload — the common case for Word
+    // header logos and OLE preview pictures), extract it and use that as the
+    // display URL. Original bytes stay on `data` so round-trip is unaffected.
+    const raster = isMetafileMimeType(mimeType) ? extractMetafileRaster(data) : null;
+    const dataUrl = mediaToDataUrl(
+      raster ? (raster.bytes.buffer as ArrayBuffer) : data,
+      raster ? raster.mimeType : mimeType
+    );
 
     const mediaFile: MediaFile = {
       path,
@@ -370,6 +433,28 @@ function buildMediaMap(raw: RawDocxContent, _rels: RelationshipMap): Map<string,
   }
 
   return media;
+}
+
+/**
+ * Apply the host-supplied {@link MediaResolver} to every distinct MediaFile.
+ * The same `MediaFile` object is keyed under multiple paths (with and without
+ * the `word/` prefix), so de-dupe by identity before resolving.
+ */
+async function applyMediaResolver(
+  media: Map<string, MediaFile>,
+  resolver: MediaResolver
+): Promise<void> {
+  const files = [...new Set(media.values())];
+  await Promise.all(
+    files.map(async (file) => {
+      try {
+        const url = await resolver(file);
+        if (url) file.dataUrl = url;
+      } catch (err) {
+        console.warn(`[parseDocx] mediaResolver failed for ${file.path}:`, err);
+      }
+    })
+  );
 }
 
 /**

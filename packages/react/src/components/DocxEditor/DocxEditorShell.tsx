@@ -2,10 +2,15 @@ import type { CSSProperties, ReactNode } from 'react';
 import type { SectionProperties, TabStop } from '@eigenpal/docx-editor-core/types/document';
 import type { TrackedChangesResult } from '@eigenpal/docx-editor-core/prosemirror/utils/extractTrackedChanges';
 import { LocaleProvider } from '../../i18n';
+import { cn } from '../../lib/utils';
 import { ErrorBoundary, ErrorProvider } from '../ErrorBoundary';
 import { HorizontalRuler } from '../ui/HorizontalRuler';
-import { VerticalRuler } from '../ui/VerticalRuler';
-import { DocumentOutline } from '../DocumentOutline';
+import { VerticalRuler, RULER_WIDTH } from '../ui/VerticalRuler';
+import {
+  DocumentOutline,
+  OUTLINE_LEFT_OFFSET,
+  OUTLINE_BUTTON_LEFT_OFFSET,
+} from '../DocumentOutline';
 import { OutlineToggleButton } from './OutlineToggleButton';
 import { PageIndicator } from './PageIndicator';
 import { LocalizedAgentPanel } from './LocalizedAgentPanel';
@@ -68,6 +73,7 @@ interface OutlineProps {
  */
 export function DocxEditorShell({
   i18n,
+  isDark,
   onEditorError,
   containerRef,
   scrollContainerRef,
@@ -104,6 +110,7 @@ export function DocxEditorShell({
   fileInputs,
 }: {
   i18n: React.ComponentProps<typeof LocaleProvider>['i18n'];
+  isDark?: boolean;
   onEditorError: (error: Error) => void;
   containerRef: React.Ref<HTMLDivElement>;
   scrollContainerRef: React.Ref<HTMLDivElement>;
@@ -145,7 +152,7 @@ export function DocxEditorShell({
         <ErrorBoundary onError={onEditorError}>
           <div
             ref={containerRef}
-            className={`ep-root docx-editor ${className ?? ''}`}
+            className={cn('ep-root docx-editor', isDark && 'dark', className)}
             style={containerStyle}
             data-testid="docx-editor"
           >
@@ -164,6 +171,7 @@ export function DocxEditorShell({
 
                 <div
                   ref={scrollContainerRef}
+                  className="docx-editor__scroll-container"
                   style={editorContainerStyle}
                   onMouseDown={onScrollContainerMouseDown}
                 >
@@ -255,7 +263,15 @@ export function DocxEditorShell({
                   />
                 )}
 
-                {showOutline && <DocumentOutline {...outlineProps} />}
+                {/* When the vertical ruler is shown it overlays the editor's
+                    left edge (left:0, width RULER_WIDTH); inset the outline
+                    toggle/panel past it so they don't render on top. */}
+                {showOutline && (
+                  <DocumentOutline
+                    {...outlineProps}
+                    leftOffset={OUTLINE_LEFT_OFFSET + (showRuler ? RULER_WIDTH : 0)}
+                  />
+                )}
 
                 {showOutlineButton && !showOutline && (
                   <OutlineToggleButton
@@ -265,6 +281,7 @@ export function DocxEditorShell({
                     // padding-top (24) + pages container padding (24).
                     topPx={toolbarHeight + (showRuler ? 30 : 0) + 48}
                     scrollLeft={editorScrollLeft}
+                    leftOffset={OUTLINE_BUTTON_LEFT_OFFSET + (showRuler ? RULER_WIDTH : 0)}
                   />
                 )}
               </div>

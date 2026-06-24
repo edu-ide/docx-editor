@@ -26,6 +26,7 @@ import type {
 } from '../../../types/document';
 import { mergeTextFormatting } from '../../../utils/textFormattingMerge';
 import type { StyleResolver } from '../../styles';
+import { getMarkSetKey, RUN_BOUNDARY_MARK_EXCLUSIONS } from '../markKeys';
 import { resolveTextFormatting } from './marks';
 import { convertRun, convertHyperlink, convertField, convertMathEquation } from './runs';
 import { sdtPropsToAttrs } from '../sdtAttrs';
@@ -45,6 +46,8 @@ export function convertParagraph(
   const attrs = paragraphFormattingToAttrs(paragraph, styleResolver);
   const inlineNodes: PMNode[] = [];
   let bookmarksArr: Array<{ id: number; name: string }> | undefined;
+  let inlineEndIds: number[] | undefined;
+  let originalRunBoundaries: ParagraphAttrs['_originalRunBoundaries'] = [];
 
   // Track active comment ranges for this paragraph
   const commentIds = activeCommentIds ?? new Set<number>();
@@ -70,6 +73,12 @@ export function convertParagraph(
       commentIds.delete(content.id);
     } else if (content.type === 'run') {
       let runNodes = convertRun(content, mergedStyleRunFormatting, styleResolver);
+      const runBoundary = runBoundaryFromConvertedRun(content, runNodes);
+      if (runBoundary && originalRunBoundaries) {
+        originalRunBoundaries.push(runBoundary);
+      } else {
+        originalRunBoundaries = undefined;
+      }
       if (commentIds.size > 0) {
         runNodes = applyCommentMarks(runNodes, commentIds);
       }
@@ -77,12 +86,15 @@ export function convertParagraph(
     } else if (content.type === 'hyperlink') {
       const linkNodes = convertHyperlink(content, mergedStyleRunFormatting, styleResolver);
       inlineNodes.push(...linkNodes);
+      originalRunBoundaries = undefined;
     } else if (content.type === 'simpleField' || content.type === 'complexField') {
       const fieldNode = convertField(content, mergedStyleRunFormatting);
       if (fieldNode) inlineNodes.push(fieldNode);
+      originalRunBoundaries = undefined;
     } else if (content.type === 'inlineSdt') {
       const sdtNode = convertInlineSdt(content, mergedStyleRunFormatting, styleResolver);
       if (sdtNode) inlineNodes.push(sdtNode);
+      originalRunBoundaries = undefined;
     } else if (content.type === 'insertion') {
       let insNodes = convertTrackedChange(
         content,
@@ -94,6 +106,7 @@ export function convertParagraph(
         insNodes = applyCommentMarks(insNodes, commentIds);
       }
       inlineNodes.push(...insNodes);
+      originalRunBoundaries = undefined;
     } else if (content.type === 'deletion') {
       let delNodes = convertTrackedChange(
         content,
@@ -105,6 +118,7 @@ export function convertParagraph(
         delNodes = applyCommentMarks(delNodes, commentIds);
       }
       inlineNodes.push(...delNodes);
+      originalRunBoundaries = undefined;
     } else if (content.type === 'moveFrom') {
       let moveFromNodes = convertTrackedChange(
         content,
@@ -117,6 +131,7 @@ export function convertParagraph(
         moveFromNodes = applyCommentMarks(moveFromNodes, commentIds);
       }
       inlineNodes.push(...moveFromNodes);
+      originalRunBoundaries = undefined;
     } else if (content.type === 'moveTo') {
       let moveToNodes = convertTrackedChange(
         content,
@@ -129,22 +144,76 @@ export function convertParagraph(
         moveToNodes = applyCommentMarks(moveToNodes, commentIds);
       }
       inlineNodes.push(...moveToNodes);
+      originalRunBoundaries = undefined;
     } else if (content.type === 'mathEquation') {
       const mathNode = convertMathEquation(content);
       if (mathNode) inlineNodes.push(mathNode);
+      originalRunBoundaries = undefined;
+    } else if (content.type !== 'bookmarkStart' && content.type !== 'bookmarkEnd') {
+      originalRunBoundaries = undefined;
     }
     // Collect bookmarkStart entries for round-trip
     if (content.type === 'bookmarkStart') {
       if (!bookmarksArr) bookmarksArr = [];
       bookmarksArr.push({ id: content.id, name: content.name });
+    } else if (content.type === 'bookmarkEnd') {
+      // Track every inline bookmarkEnd; below we keep only the "lone" ones —
+      // those whose matching start is NOT inline in this paragraph. Those would
+      // otherwise be dropped (the `bookmarks` attr only fabricates ends for
+      // inline starts), orphaning a block-level or cross-paragraph start.
+      if (!inlineEndIds) inlineEndIds = [];
+      inlineEndIds.push(content.id);
     }
   }
 
   if (bookmarksArr) {
     attrs.bookmarks = bookmarksArr;
   }
+  if (inlineEndIds) {
+    const startIds = new Set((bookmarksArr ?? []).map((b) => b.id));
+    const loneEndIds = inlineEndIds.filter((id) => !startIds.has(id));
+    if (loneEndIds.length > 0) {
+      attrs.loneBookmarkEndIds = loneEndIds;
+    }
+  }
+  if (originalRunBoundaries && originalRunBoundaries.length > 0) {
+    attrs._originalRunBoundaries = originalRunBoundaries;
+  }
+  // Carry block-level bookmark markers (the side-channel `wrapBlockMarkers`
+  // emits) verbatim onto the PM node so they survive the edit round trip.
+  // These are SEPARATE from the inline `bookmarks` attr above — they wrap the
+  // whole `w:p`, not its runs — so there is no double emission.
+  if (paragraph.leadingBlockMarkers && paragraph.leadingBlockMarkers.length > 0) {
+    attrs.leadingBlockMarkers = paragraph.leadingBlockMarkers;
+  }
+  if (paragraph.trailingBlockMarkers && paragraph.trailingBlockMarkers.length > 0) {
+    attrs.trailingBlockMarkers = paragraph.trailingBlockMarkers;
+  }
 
   return schema.node('paragraph', attrs, inlineNodes);
+}
+
+function runBoundaryFromConvertedRun(
+  run: Run,
+  runNodes: PMNode[]
+): NonNullable<ParagraphAttrs['_originalRunBoundaries']>[number] | null {
+  let text = '';
+  let marksKey: string | undefined;
+
+  for (const node of runNodes) {
+    if (!node.isText) return null;
+    text += node.text ?? '';
+    const nodeMarksKey = getMarkSetKey(node.marks, RUN_BOUNDARY_MARK_EXCLUSIONS);
+    if (marksKey != null && marksKey !== nodeMarksKey) return null;
+    marksKey = nodeMarksKey;
+  }
+
+  return {
+    text,
+    ...(marksKey != null ? { marksKey } : {}),
+    ...(run.formatting ? { formatting: run.formatting } : {}),
+    ...(run.propertyChanges ? { propertyChanges: run.propertyChanges } : {}),
+  };
 }
 
 /**
@@ -223,6 +292,7 @@ function paragraphFormattingToAttrs(
     textId: paragraph.textId ?? undefined,
     styleId: styleId,
     numPr: formatting?.numPr,
+    numPrFromStyle: formatting?.numPrFromStyle,
     // List rendering info from parsed numbering definitions
     listNumFmt: paragraph.listRendering?.numFmt,
     listIsBullet: paragraph.listRendering?.isBullet,
@@ -254,8 +324,18 @@ function paragraphFormattingToAttrs(
     if (formatting?.spacingExplicit) attrs.spacingExplicit = formatting.spacingExplicit;
     attrs.indentLeft = formatting?.indentLeft ?? stylePpr?.indentLeft;
     attrs.indentRight = formatting?.indentRight ?? stylePpr?.indentRight;
-    attrs.indentFirstLine = formatting?.indentFirstLine ?? stylePpr?.indentFirstLine;
-    attrs.hangingIndent = formatting?.hangingIndent ?? stylePpr?.hangingIndent;
+    // When the paragraph explicitly removes the style's numbering (direct
+    // numId=0 under a numbered style), Word also drops the style's
+    // marker-positioning firstLine/hanging — the paragraph keeps only the
+    // indents it states itself (#765: a direct left=357 renders indented
+    // instead of hanging the first line back to the margin). Outside that
+    // case w:ind merges per attribute: a direct left-only indent keeps the
+    // style's firstLine (Word's own Increase Indent emits exactly that).
+    const numberingRemoved =
+      formatting?.numPr?.numId === 0 && stylePpr?.numPr && stylePpr.numPr.numId !== 0;
+    const styleFirstLine = numberingRemoved ? undefined : stylePpr;
+    attrs.indentFirstLine = formatting?.indentFirstLine ?? styleFirstLine?.indentFirstLine;
+    attrs.hangingIndent = formatting?.hangingIndent ?? styleFirstLine?.hangingIndent;
     attrs.borders = formatting?.borders ?? stylePpr?.borders;
     attrs.shading = formatting?.shading ?? stylePpr?.shading;
     attrs.tabs = formatting?.tabs ?? stylePpr?.tabs;
@@ -294,6 +374,7 @@ function paragraphFormattingToAttrs(
     // numId === 0 means "no numbering" per OOXML spec — skip it
     if (!formatting?.numPr && stylePpr?.numPr && stylePpr.numPr.numId !== 0) {
       attrs.numPr = stylePpr.numPr;
+      attrs.numPrFromStyle = stylePpr.numPr;
     }
   } else {
     // No style resolver - use inline formatting only
@@ -336,6 +417,9 @@ function paragraphFormattingToAttrs(
   }
   if (paragraph.renderedPageBreakBefore) {
     attrs.renderedPageBreakBefore = true;
+  }
+  if (paragraphStartsWithPageBreak(paragraph)) {
+    attrs.pageBreakBefore = true;
   }
 
   // Paragraph-mark tracked-change attrs (w:pPr/w:rPr/w:ins, w:del).
@@ -402,50 +486,109 @@ function convertInlineSdt(
   );
 }
 
-/**
- * Returns true when `<w:br w:type="page"/>` appears anywhere in a paragraph.
- *
- * A hard page break is always a forced break per ECMA-376 §17.3.3.1. We used
- * to require visible content before the break (and rely on
- * `renderedPageBreakBefore` for leading breaks), but that attr is informational
- * only and not honored at layout, so a break-only paragraph (empty paragraph
- * containing just `<w:r><w:br w:type="page"/></w:r>`) silently dropped its
- * forced break — Word renders such paragraphs with the next paragraph on a
- * fresh page.
- */
-export function paragraphHasPageBreak(paragraph: Paragraph): boolean {
-  function visitRunContent(content: RunContent): boolean {
-    return content.type === 'break' && content.breakType === 'page';
-  }
+type ParagraphContentToken = 'pageBreak' | 'visible';
 
-  function visit(item: Paragraph['content'][number]): boolean {
+function isVisibleRunContent(content: RunContent): boolean {
+  if (content.type === 'text') return content.text.length > 0;
+  return true;
+}
+
+function collectRunContentTokens(contents: RunContent[], tokens: ParagraphContentToken[]): void {
+  for (const content of contents) {
+    if (content.type === 'break' && content.breakType === 'page') {
+      tokens.push('pageBreak');
+    } else if (isVisibleRunContent(content)) {
+      tokens.push('visible');
+    }
+  }
+}
+
+function collectRunOrHyperlinkTokens(
+  items: readonly (Run | Hyperlink)[],
+  tokens: ParagraphContentToken[]
+): void {
+  for (const item of items) {
     if (item.type === 'run') {
-      for (const c of (item as Run).content) {
-        if (visitRunContent(c)) return true;
-      }
-      return false;
+      collectRunContentTokens(item.content, tokens);
+    } else {
+      collectRunOrHyperlinkTokens(
+        item.children.filter((child): child is Run => child.type === 'run'),
+        tokens
+      );
     }
-    if (item.type === 'hyperlink') {
-      for (const r of (item as Hyperlink).children) {
-        if (r.type === 'run' && visit(r)) return true;
-      }
-      return false;
+  }
+}
+
+function collectParagraphContentTokens(
+  items: readonly Paragraph['content'][number][],
+  tokens: ParagraphContentToken[]
+): void {
+  for (const item of items) {
+    switch (item.type) {
+      case 'run':
+        collectRunContentTokens(item.content, tokens);
+        break;
+      case 'hyperlink':
+        collectRunOrHyperlinkTokens(
+          item.children.filter((child): child is Run => child.type === 'run'),
+          tokens
+        );
+        break;
+      case 'simpleField':
+        collectRunOrHyperlinkTokens(item.content, tokens);
+        break;
+      case 'complexField':
+        collectRunOrHyperlinkTokens([...item.fieldCode, ...item.fieldResult], tokens);
+        break;
+      case 'inlineSdt':
+        collectParagraphContentTokens(item.content as Paragraph['content'], tokens);
+        break;
+      case 'insertion':
+      case 'deletion':
+      case 'moveFrom':
+      case 'moveTo':
+        collectRunOrHyperlinkTokens(item.content, tokens);
+        break;
+      case 'mathEquation':
+        tokens.push('visible');
+        break;
     }
-    if (item.type === 'insertion' || item.type === 'deletion') {
-      // Tracked-change wrappers can themselves contain a page break.
-      // Descend so a break inside <w:ins> or <w:del> still emits a
-      // pageBreak node downstream.
-      const tc = item as { content: Paragraph['content'] };
-      for (const inner of tc.content) {
-        if (visit(inner)) return true;
+  }
+}
+
+function paragraphContentTokens(paragraph: Paragraph): ParagraphContentToken[] {
+  const tokens: ParagraphContentToken[] = [];
+  collectParagraphContentTokens(paragraph.content, tokens);
+  return tokens;
+}
+
+export function paragraphStartsWithPageBreak(paragraph: Paragraph): boolean {
+  return paragraphContentTokens(paragraph)[0] === 'pageBreak';
+}
+
+/**
+ * Returns true when `<w:br w:type="page"/>` appears after the leading
+ * position in a paragraph.
+ *
+ * A leading hard page break can be represented as `pageBreakBefore` on the
+ * same paragraph, preserving the DOCX paragraph count through the PM round
+ * trip. Later hard breaks still need a standalone PM `pageBreak` block so
+ * layout keeps forcing a page boundary.
+ */
+export function paragraphHasNonLeadingPageBreak(paragraph: Paragraph): boolean {
+  let consumedLeadingPageBreak = false;
+  let sawVisibleContent = false;
+
+  for (const token of paragraphContentTokens(paragraph)) {
+    if (token === 'pageBreak') {
+      if (sawVisibleContent || consumedLeadingPageBreak) {
+        return true;
       }
-      return false;
+      consumedLeadingPageBreak = true;
+    } else {
+      sawVisibleContent = true;
     }
-    return false;
   }
 
-  for (const item of paragraph.content) {
-    if (visit(item)) return true;
-  }
   return false;
 }

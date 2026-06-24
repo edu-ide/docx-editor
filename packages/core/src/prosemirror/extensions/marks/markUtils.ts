@@ -38,7 +38,15 @@ function marksToTextFormatting(marks: readonly Mark[]): TextFormatting {
         formatting.highlight = mark.attrs.color;
         break;
       case 'fontSize':
-        formatting.fontSize = mark.attrs.size;
+        // CS-only RTL runs carry the size in `sizeCs`; fall back so the toolbar
+        // field isn't blank for them.
+        formatting.fontSize = mark.attrs.size ?? mark.attrs.sizeCs;
+        // Preserve a genuinely distinct complex-script size so a run with
+        // different Latin/CS sizes survives a read -> textFormattingToMarks
+        // round-trip (e.g. stored-mark persistence); without it fontSizeCs
+        // stays undefined and the next write re-aligns sizeCs to fontSize.
+        // Only set when sizeCs is present so Latin-only runs stay fontSize-only.
+        if (mark.attrs.sizeCs != null) formatting.fontSizeCs = mark.attrs.sizeCs;
         break;
       case 'fontFamily':
         formatting.fontFamily = {
@@ -51,6 +59,12 @@ function marksToTextFormatting(marks: readonly Mark[]): TextFormatting {
         break;
       case 'subscript':
         formatting.vertAlign = 'subscript';
+        break;
+      case 'rtl':
+        // Per-run right-to-left flag (`<w:rtl/>`). Without this case, formatting
+        // helpers that route through markUtils (live-edit commands, clipboard)
+        // silently drop run direction for Arabic/Hebrew/etc. text. Fixes #806.
+        formatting.rtl = true;
         break;
     }
   }
@@ -271,7 +285,12 @@ export function textFormattingToMarks(formatting: TextFormatting, schema: Schema
     marks.push(schema.marks.highlight.create({ color: formatting.highlight }));
   }
   if (formatting.fontSize) {
-    marks.push(schema.marks.fontSize.create({ size: formatting.fontSize }));
+    marks.push(
+      schema.marks.fontSize.create({
+        size: formatting.fontSize,
+        sizeCs: formatting.fontSizeCs ?? formatting.fontSize,
+      })
+    );
   }
   if (formatting.fontFamily) {
     marks.push(
@@ -287,6 +306,9 @@ export function textFormattingToMarks(formatting: TextFormatting, schema: Schema
   }
   if (formatting.vertAlign === 'subscript') {
     marks.push(schema.marks.subscript.create());
+  }
+  if (formatting.rtl) {
+    marks.push(schema.marks.rtl.create());
   }
 
   return marks;

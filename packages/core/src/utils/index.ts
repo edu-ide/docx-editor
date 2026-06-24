@@ -92,6 +92,8 @@ export {
   preloadCommonFonts,
   loadDocumentFonts,
   isFontLoaded,
+  setGoogleFontsEnabled,
+  isGoogleFontsEnabled,
   isLoading,
   getLoadedFonts,
   onFontsLoaded,
@@ -102,6 +104,17 @@ export {
   extractFontsFromDocument,
 } from './fontLoader';
 export type { FontDefinition } from './fontLoader';
+
+// Embedded fonts (de-obfuscation + load + picker discovery)
+export { deobfuscateFont, isValidFontKey } from './fontDeobfuscation';
+export { getEmbeddedFontFaces, loadEmbeddedFonts, getEmbeddedFontFamilies } from './embeddedFonts';
+export type { EmbeddedFontFace } from './embeddedFonts';
+export {
+  getRenderableDocumentFonts,
+  selectRenderableFonts,
+  excludeFontsByName,
+} from './documentPickerFonts';
+export type { RenderableFontOptions } from './documentPickerFonts';
 
 // Formatting → CSS style
 export {
@@ -217,6 +230,17 @@ export {
 } from './selectionHighlight';
 export type { HighlightRect, SelectionHighlightConfig, SelectionRange } from './selectionHighlight';
 
+// Paragraph flash helpers
+export {
+  DEFAULT_PARAGRAPH_FLASH_COLOR,
+  DEFAULT_PARAGRAPH_FLASH_DURATION_MS,
+  PARAGRAPH_FLASH_CLASS_NAME,
+  findParagraphFragmentsByParaId,
+  flashParagraphElements,
+  flashParagraphFragmentsByParaId,
+} from './paragraphFlash';
+export type { ParagraphHighlightOptions, ScrollToParaIdOptions } from './paragraphFlash';
+
 // Table split algorithm
 export {
   sumColumnWidths,
@@ -255,3 +279,11 @@ export {
 // trick can't drift between React, Vue, or any future framework host.
 export { readDocxFileFromInput } from './readDocxFile';
 export type { ReadDocxFileResult } from './readDocxFile';
+
+// Color-mode (light/dark/auto) resolution — shared so the prefers-color-scheme
+// + SSR handling stays identical across React, Vue, and future hosts.
+export { prefersColorSchemeDark, resolveIsDark, subscribeSystemDark } from './colorMode';
+export type { ColorMode } from './colorMode';
+
+// URL scheme allowlist for hrefs from untrusted input (DOCX rels, pasted HTML).
+export { sanitizeHref } from './sanitizeHref';

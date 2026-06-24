@@ -60,12 +60,13 @@ export interface EditorBridge {
     }): PageContent[];
     getSelection(): SelectionInfo | null;
     getTotalPages(): number;
+    insertBreak(options: InsertBreakOptions): boolean;
     onContentChange(listener: (event: ContentChangeEvent) => void): () => void;
     onSelectionChange(listener: (event: SelectionChangeEvent) => void): () => void;
     proposeChange(options: ProposeChangeOptions): boolean;
     replyTo(commentId: number, options: ReplyOptions): number | null;
     resolveComment(commentId: number): void;
-    scrollTo(paraId: string): boolean;
+    scrollTo(paraId: string, options?: ScrollToParaIdOptions): boolean;
     setParagraphStyle(options: SetParagraphStyleOptions): boolean;
 }
 
@@ -108,6 +109,10 @@ export interface EditorRefLike {
     // (undocumented)
     getSelectionInfo(): SelectionInfo | null;
     getTotalPages(): number;
+    insertBreak(options: {
+        paraId: string;
+        type: 'page' | 'sectionNextPage' | 'sectionContinuous';
+    }): boolean;
     // (undocumented)
     onContentChange(listener: (doc: unknown) => void): () => void;
     // (undocumented)
@@ -124,7 +129,7 @@ export interface EditorRefLike {
     // (undocumented)
     resolveComment(commentId: number): void;
     // (undocumented)
-    scrollToParaId(paraId: string): boolean;
+    scrollToParaId(paraId: string, options?: ScrollToParaIdOptions): boolean;
     setParagraphStyle(options: {
         paraId: string;
         styleId: string;
@@ -143,6 +148,17 @@ export function getToolSchemas(): {
         parameters: Record<string, unknown>;
     };
 }[];
+
+// @public
+export interface ParagraphHighlightOptions {
+    color?: string;
+    durationMs?: number;
+}
+
+// @public
+export interface ScrollToParaIdOptions {
+    highlight?: ParagraphHighlightOptions;
+}
 
 // @public
 export type SelectionChangeEvent = SelectionInfo | null;

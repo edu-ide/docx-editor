@@ -24,8 +24,13 @@ export {
   countTableColumns,
   normalizeTableColumnWidths,
   resolveCellGrid,
+  resolveTableColumnWidths,
+  resolveTableTotalWidthPx,
 } from './tableWidthUtils';
 export type { ResolvedGridCell } from './tableWidthUtils';
+
+// Floating-table classification (demote full-width floats to inline).
+export { isBlockLikeFloatingTable, demoteBlockLikeFloatingTables } from './floatingTable';
 
 // Measurement (text + paragraph + caches)
 export * from './measuring';
@@ -66,6 +71,8 @@ export {
   getCaretPositionFromDom,
 } from './clickToPositionDom';
 export type { DomSelectionRect, DomCaretPosition } from './clickToPositionDom';
+export { syncImeCaretAnchor, resetImeCaretAnchor } from './imeCaretAnchor';
+export type { SyncImeCaretAnchorOptions, VisibleCaretViewportRect } from './imeCaretAnchor';
 export { applyCellSelectionHighlight } from './cellSelectionHighlight';
 
 // Selection rectangles
@@ -91,10 +98,13 @@ export {
   buildFootnoteRenderItems,
   footnoteReservedHeightsEqual,
   stabilizeFootnoteLayout,
+  distributeFootnotesIntoColumns,
   FOOTNOTE_SEPARATOR_HEIGHT,
+  FOOTNOTE_COLUMN_GAP_PX,
   MAX_FOOTNOTE_LAYOUT_PASSES,
 } from './footnoteLayout';
 export type {
+  FootnoteRefLocation,
   MeasureBlocksFn,
   ConvertFootnoteOptions,
   StabilizeFootnoteLayoutArgs,

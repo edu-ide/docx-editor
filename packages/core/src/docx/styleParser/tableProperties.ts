@@ -12,7 +12,6 @@ import type {
   TableFormatting,
   TableRowFormatting,
   TableCellFormatting,
-  TableBorders,
   CellMargins,
   TableLook,
   TableMeasurement,
@@ -25,7 +24,7 @@ import {
   type XmlElement,
 } from '../xmlParser';
 import { parseShadingProperties } from './runProperties';
-import { parseBorderSpec } from './paragraphProperties';
+import { parseTableBorders } from '../borderParser';
 
 /**
  * Parse table measurement (width/height with type)
@@ -44,35 +43,6 @@ function parseTableMeasurement(element: XmlElement | null): TableMeasurement | u
   }
 
   return undefined;
-}
-
-/**
- * Parse table borders
- */
-function parseTableBorders(tblBorders: XmlElement | null): TableBorders | undefined {
-  if (!tblBorders) return undefined;
-
-  const borders: TableBorders = {};
-
-  const top = parseBorderSpec(findChild(tblBorders, 'w', 'top'));
-  if (top) borders.top = top;
-
-  const bottom = parseBorderSpec(findChild(tblBorders, 'w', 'bottom'));
-  if (bottom) borders.bottom = bottom;
-
-  const left = parseBorderSpec(findChild(tblBorders, 'w', 'left'));
-  if (left) borders.left = left;
-
-  const right = parseBorderSpec(findChild(tblBorders, 'w', 'right'));
-  if (right) borders.right = right;
-
-  const insideH = parseBorderSpec(findChild(tblBorders, 'w', 'insideH'));
-  if (insideH) borders.insideH = insideH;
-
-  const insideV = parseBorderSpec(findChild(tblBorders, 'w', 'insideV'));
-  if (insideV) borders.insideV = insideV;
-
-  return Object.keys(borders).length > 0 ? borders : undefined;
 }
 
 /**

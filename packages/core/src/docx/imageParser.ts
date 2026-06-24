@@ -45,6 +45,7 @@ import {
   type XmlElement,
 } from './xmlParser';
 import { resolveTarget } from './relsParser';
+import { sanitizeHref } from '../utils/sanitizeHref';
 import { isTextBoxDrawing } from './textBoxParser';
 import { emuToPixels } from '../utils/units';
 import {
@@ -378,7 +379,7 @@ function getMimeType(path: string): string {
  * @param media - Media files map
  * @returns Object with src (data URL or blob), mimeType, and filename
  */
-function resolveImageData(
+export function resolveImageData(
   rId: string,
   rels: RelationshipMap | undefined,
   media: Map<string, MediaFile> | undefined
@@ -534,7 +535,7 @@ function parseInline(
 
   // Resolve image hyperlink (a:hlinkClick)
   if (props.hlinkRId && rels) {
-    const href = resolveTarget(rels, props.hlinkRId);
+    const href = sanitizeHref(resolveTarget(rels, props.hlinkRId));
     if (href) image.hlinkHref = href;
   }
 
@@ -641,7 +642,7 @@ function parseAnchor(
 
   // Resolve image hyperlink (a:hlinkClick)
   if (props.hlinkRId && rels) {
-    const href = resolveTarget(rels, props.hlinkRId);
+    const href = sanitizeHref(resolveTarget(rels, props.hlinkRId));
     if (href) image.hlinkHref = href;
   }
 

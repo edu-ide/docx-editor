@@ -308,7 +308,7 @@ export function resolveHeaderFooterFloatLeft(width: number, h: {
 } | undefined, layout: HeaderFooterLayoutInfo): string;
 
 // @public
-export function s(block: ParagraphBlock, line: MeasuredLine, alignment: 'left' | 'center' | 'right' | 'justify' | undefined, doc: Document, options?: RenderLineOptions): HTMLElement;
+export function s(block: ParagraphBlock, line: MeasuredLine, alignment: RenderLineAlignment, doc: Document, options?: RenderLineOptions): HTMLElement;
 
 // @public
 export const T: {

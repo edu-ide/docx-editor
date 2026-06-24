@@ -103,10 +103,11 @@ export function textFormattingToMarks(
   }
 
   // Font size
-  if (formatting.fontSize) {
+  if (formatting.fontSize != null || formatting.fontSizeCs != null) {
     marks.push(
       schema.mark('fontSize', {
-        size: formatting.fontSize,
+        size: formatting.fontSize ?? null,
+        sizeCs: formatting.fontSizeCs ?? null,
       })
     );
   }
@@ -199,6 +200,13 @@ export function textFormattingToMarks(
   // Text effect animations (w:effect)
   if (formatting.effect && formatting.effect !== 'none') {
     marks.push(schema.mark('textEffect', { effect: formatting.effect }));
+  }
+
+  // Character-style reference (w:rStyle). The style's formatting is already
+  // baked into the direct marks above via resolveTextFormatting; this only
+  // carries the named reference so `<w:rStyle>` survives the round-trip.
+  if (formatting.styleId) {
+    marks.push(schema.mark('runStyle', { styleId: formatting.styleId }));
   }
 
   return marks;

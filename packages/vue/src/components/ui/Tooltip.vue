@@ -11,7 +11,7 @@
   <Teleport to="body">
     <div
       v-if="isOpen"
-      class="docx-tooltip"
+      :class="['docx-tooltip', portalClass]"
       :style="bubbleStyle"
     >
       {{ content }}
@@ -21,6 +21,10 @@
 
 <script setup lang="ts">
 import { ref, computed, onBeforeUnmount, type CSSProperties } from 'vue';
+import { useDocxPortalClass } from '../../composables/usePortalClass';
+
+// Re-apply the editor's `.ep-root` token scope to this body-teleported tooltip.
+const portalClass = useDocxPortalClass();
 
 const props = withDefaults(
   defineProps<{
@@ -81,10 +85,10 @@ const bubbleStyle = computed<CSSProperties>(() => ({
   padding: 4px 8px;
   font-size: 12px;
   font-weight: 500;
-  color: #fff;
-  background: #0f172a;
+  color: var(--doc-on-primary);
+  background: var(--doc-text);
   border-radius: 6px;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 6px -1px var(--doc-shadow);
   pointer-events: none;
 }
 </style>

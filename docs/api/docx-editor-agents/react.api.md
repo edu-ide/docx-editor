@@ -5,11 +5,11 @@
 ```ts
 
 import { CSSProperties } from 'react';
-import * as react_jsx_runtime from 'react/jsx-runtime';
+import * as react from 'react';
 import { ReactNode } from 'react';
 
 // @public (undocumented)
-export function AgentChatLog(input: AgentChatLogProps): react_jsx_runtime.JSX.Element;
+export function AgentChatLog(input: AgentChatLogProps): react.JSX.Element;
 
 // @public (undocumented)
 export interface AgentChatLogProps {
@@ -32,7 +32,7 @@ export interface AgentChatLogProps {
 }
 
 // @public (undocumented)
-export function AgentComposer(input: AgentComposerProps): react_jsx_runtime.JSX.Element;
+export function AgentComposer(input: AgentComposerProps): react.JSX.Element;
 
 // @public (undocumented)
 export interface AgentComposerProps {
@@ -72,7 +72,7 @@ export interface AgentMessage {
 }
 
 // @public (undocumented)
-export function AgentPanel(input: AgentPanelProps): react_jsx_runtime.JSX.Element;
+export function AgentPanel(input: AgentPanelProps): react.JSX.Element;
 
 // @public (undocumented)
 export interface AgentPanelProps {
@@ -92,7 +92,7 @@ export interface AgentPanelProps {
 }
 
 // @public (undocumented)
-export function AgentSuggestionChip(input: AgentSuggestionChipProps): react_jsx_runtime.JSX.Element;
+export function AgentSuggestionChip(input: AgentSuggestionChipProps): react.JSX.Element;
 
 // @public (undocumented)
 export interface AgentSuggestionChipProps {
@@ -105,7 +105,7 @@ export interface AgentSuggestionChipProps {
 }
 
 // @public
-export function AgentTimeline(input: AgentTimelineProps): react_jsx_runtime.JSX.Element | null;
+export function AgentTimeline(input: AgentTimelineProps): react.JSX.Element | null;
 
 // @public (undocumented)
 export interface AgentTimelineProps {
@@ -186,6 +186,10 @@ export interface EditorRefLike {
     // (undocumented)
     getSelectionInfo(): SelectionInfo | null;
     getTotalPages(): number;
+    insertBreak(options: {
+        paraId: string;
+        type: 'page' | 'sectionNextPage' | 'sectionContinuous';
+    }): boolean;
     // (undocumented)
     onContentChange(listener: (doc: unknown) => void): () => void;
     // (undocumented)
@@ -202,7 +206,7 @@ export interface EditorRefLike {
     // (undocumented)
     resolveComment(commentId: number): void;
     // (undocumented)
-    scrollToParaId(paraId: string): boolean;
+    scrollToParaId(paraId: string, options?: ScrollToParaIdOptions): boolean;
     setParagraphStyle(options: {
         paraId: string;
         styleId: string;

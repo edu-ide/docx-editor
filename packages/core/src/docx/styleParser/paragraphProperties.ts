@@ -1,15 +1,14 @@
 /**
  * Paragraph property parser (w:pPr → ParagraphFormatting).
  *
- * Owns parseParagraphProperties plus its two leaf helpers (parseBorderSpec
- * and parseTabStops). Shading, color, and run-default parsing live in
- * runProperties.ts and are imported here.
+ * Owns parseParagraphProperties plus its `parseTabStops` leaf helper. Border
+ * parsing lives in `borderParser.ts`, shading/color/run-default parsing in
+ * `runProperties.ts`; both are imported here.
  */
 
 import type {
   Theme,
   ParagraphFormatting,
-  BorderSpec,
   TabStop,
   TabStopAlignment,
   TabLeader,
@@ -22,46 +21,8 @@ import {
   findChildren,
   type XmlElement,
 } from '../xmlParser';
-import { parseColorValue, parseShadingProperties, parseRunProperties } from './runProperties';
-
-/**
- * Parse border specification
- */
-export function parseBorderSpec(border: XmlElement | null): BorderSpec | undefined {
-  if (!border) return undefined;
-
-  const style = getAttribute(border, 'w', 'val');
-  if (!style) return undefined;
-
-  const spec: BorderSpec = {
-    style: style as BorderSpec['style'],
-  };
-
-  const colorVal = getAttribute(border, 'w', 'color');
-  const themeColor = getAttribute(border, 'w', 'themeColor');
-  if (colorVal || themeColor) {
-    spec.color = parseColorValue(
-      colorVal,
-      themeColor,
-      getAttribute(border, 'w', 'themeTint'),
-      getAttribute(border, 'w', 'themeShade')
-    );
-  }
-
-  const sz = parseNumericAttribute(border, 'w', 'sz');
-  if (sz !== undefined) spec.size = sz;
-
-  const space = parseNumericAttribute(border, 'w', 'space');
-  if (space !== undefined) spec.space = space;
-
-  const shadowAttr = getAttribute(border, 'w', 'shadow');
-  if (shadowAttr) spec.shadow = shadowAttr === '1' || shadowAttr === 'true';
-
-  const frame = getAttribute(border, 'w', 'frame');
-  if (frame) spec.frame = frame === '1' || frame === 'true';
-
-  return spec;
-}
+import { parseShadingProperties, parseRunProperties } from './runProperties';
+import { parseParagraphBorders } from '../borderParser';
 
 /**
  * Parse tab stops (w:tabs)
@@ -160,26 +121,8 @@ export function parseParagraphProperties(
   }
 
   // Borders
-  const pBdr = findChild(pPr, 'w', 'pBdr');
-  if (pBdr) {
-    const borders: ParagraphFormatting['borders'] = {};
-    const top = parseBorderSpec(findChild(pBdr, 'w', 'top'));
-    if (top) borders.top = top;
-    const bottom = parseBorderSpec(findChild(pBdr, 'w', 'bottom'));
-    if (bottom) borders.bottom = bottom;
-    const left = parseBorderSpec(findChild(pBdr, 'w', 'left'));
-    if (left) borders.left = left;
-    const right = parseBorderSpec(findChild(pBdr, 'w', 'right'));
-    if (right) borders.right = right;
-    const between = parseBorderSpec(findChild(pBdr, 'w', 'between'));
-    if (between) borders.between = between;
-    const bar = parseBorderSpec(findChild(pBdr, 'w', 'bar'));
-    if (bar) borders.bar = bar;
-
-    if (Object.keys(borders).length > 0) {
-      formatting.borders = borders;
-    }
-  }
+  const paragraphBorders = parseParagraphBorders(findChild(pPr, 'w', 'pBdr'));
+  if (paragraphBorders) formatting.borders = paragraphBorders;
 
   // Shading
   const shd = findChild(pPr, 'w', 'shd');

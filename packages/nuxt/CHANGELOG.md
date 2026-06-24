@@ -1,5 +1,113 @@
 # @eigenpal/nuxt-docx-editor
 
+## 1.10.0
+
+### Patch Changes
+
+- Updated dependencies [53ede3c]
+  - @eigenpal/docx-editor-vue@1.10.0
+
+## 1.9.0
+
+### Patch Changes
+
+- @eigenpal/docx-editor-vue@1.9.0
+
+## 1.8.3
+
+### Patch Changes
+
+- @eigenpal/docx-editor-vue@1.8.3
+
+## 1.8.2
+
+### Patch Changes
+
+- Updated dependencies [9022b42]
+- Updated dependencies [9622082]
+- Updated dependencies [7811a73]
+  - @eigenpal/docx-editor-vue@1.8.2
+
+## 1.8.1
+
+### Patch Changes
+
+- @eigenpal/docx-editor-vue@1.8.1
+
+## 1.8.0
+
+### Patch Changes
+
+- @eigenpal/docx-editor-vue@1.8.0
+
+## 1.7.0
+
+### Patch Changes
+
+- Updated dependencies [c0923f7]
+- Updated dependencies [6be8146]
+- Updated dependencies [769f1f5]
+- Updated dependencies [36a7414]
+- Updated dependencies [e740694]
+- Updated dependencies [421faf1]
+- Updated dependencies [edd0bc2]
+- Updated dependencies [78af476]
+- Updated dependencies [94b5816]
+  - @eigenpal/docx-editor-vue@1.7.0
+
+## 1.6.2
+
+### Patch Changes
+
+- Updated dependencies [768b10e]
+- Updated dependencies [0ac0a4f]
+  - @eigenpal/docx-editor-vue@1.6.2
+
+## 1.6.1
+
+### Patch Changes
+
+- @eigenpal/docx-editor-vue@1.6.1
+
+## 1.6.0
+
+### Patch Changes
+
+- Updated dependencies [3a4a03f]
+- Updated dependencies [bbda628]
+- Updated dependencies [5509418]
+- Updated dependencies [7fe09f0]
+- Updated dependencies [7fe09f0]
+- Updated dependencies [7fe09f0]
+- Updated dependencies [b8011f8]
+- Updated dependencies [7fe09f0]
+- Updated dependencies [7fe09f0]
+- Updated dependencies [7fe09f0]
+- Updated dependencies [7fe09f0]
+- Updated dependencies [7fe09f0]
+  - @eigenpal/docx-editor-vue@1.6.0
+
+## 1.5.0
+
+### Patch Changes
+
+- Updated dependencies [19a25eb]
+- Updated dependencies [ab38192]
+- Updated dependencies [37f79ad]
+- Updated dependencies [5cdfa5c]
+- Updated dependencies [5cdfa5c]
+- Updated dependencies [d090d08]
+  - @eigenpal/docx-editor-vue@1.5.0
+
+## 1.4.0
+
+### Patch Changes
+
+- Updated dependencies [1ab8b30]
+- Updated dependencies [3d36236]
+- Updated dependencies [92690d6]
+  - @eigenpal/docx-editor-vue@1.4.0
+
 ## 1.3.3
 
 ### Patch Changes

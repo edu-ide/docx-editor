@@ -221,7 +221,11 @@ export function SplitCellIcon(): React.ReactElement {
 }
 
 export function DeleteTableIcon(): React.ReactElement {
-  return <MaterialSymbol name="delete" size={ICON_SIZE} className="text-red-600" />;
+  return <MaterialSymbol name="delete" size={ICON_SIZE} className="text-destructive" />;
+}
+
+export function SelectTableIcon(): React.ReactElement {
+  return <MaterialSymbol name="select_all" size={ICON_SIZE} />;
 }
 
 // ============================================================================
@@ -246,7 +250,7 @@ const TOOLBAR_STYLES: Record<string, CSSProperties> = {
   containerFloating: {
     position: 'absolute',
     zIndex: 1000,
-    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
+    boxShadow: '0 2px 8px var(--doc-shadow)',
   },
   group: {
     display: 'flex',
@@ -505,6 +509,15 @@ export function TableToolbar({
           icon={<SplitCellIcon />}
           disabled={disabled || !canSplit}
           onClick={() => handleAction('splitCell')}
+          showLabel={showLabels}
+          compact={compact}
+        />
+        <TableToolbarButton
+          action="selectTable"
+          label={t('table.selectTable')}
+          icon={<SelectTableIcon />}
+          disabled={disabled}
+          onClick={() => handleAction('selectTable')}
           showLabel={showLabels}
           compact={compact}
         />

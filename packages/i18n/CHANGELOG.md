@@ -1,5 +1,38 @@
 # @eigenpal/docx-editor-i18n
 
+## 1.10.0
+
+## 1.9.0
+
+### Patch Changes
+
+- 28876a2: Make regular expressions over file- and library-supplied strings run in linear time and escape quoted font names completely. The variable-detection, plural-message, and core-properties date regexes no longer backtrack polynomially on hostile input, and font family names are now backslash-escaped before being wrapped in a quoted CSS string so a crafted DOCX font name cannot break out of it.
+
+## 1.8.3
+
+## 1.8.2
+
+## 1.8.1
+
+## 1.8.0
+
+## 1.7.0
+
+## 1.6.2
+
+## 1.6.1
+
+### Patch Changes
+
+- c25ba18: Fix Indonesian (id) locale interpolation: restore the `{total}`, `{minRows}/{maxRows}/{minCols}/{maxCols}`, and `{label}` placeholders that were renamed or dropped, so the find/replace match count, insert-table validation hint, and line-spacing tooltip render their values instead of literal braces.
+- 4a75c5e: Add Indonesian (id) community-maintained locale - 97% Coverage
+
+## 1.6.0
+
+## 1.5.0
+
+## 1.4.0
+
 ## 1.3.3
 
 ## 1.3.2

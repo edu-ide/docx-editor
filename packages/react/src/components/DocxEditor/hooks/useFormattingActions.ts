@@ -28,10 +28,13 @@ import {
   setRtl,
   setLtr,
   insertPageBreak,
+  insertSectionBreakNextPage,
+  insertSectionBreakContinuous,
   generateTOC,
   insertTable,
 } from '@eigenpal/docx-editor-core/prosemirror/commands';
 import { createStyleResolver } from '@eigenpal/docx-editor-core/prosemirror';
+import { getCachedNumberingMap } from '@eigenpal/docx-editor-core/docx';
 import type { EditorView } from 'prosemirror-view';
 import type { FormattingAction } from '../../Toolbar';
 import { pointsToHalfPoints } from '../../ui/FontSizePicker';
@@ -177,6 +180,9 @@ export function useFormattingActions({
               applyStyle(action.value, {
                 paragraphFormatting: resolved.paragraphFormatting,
                 runFormatting: resolved.runFormatting,
+                numbering: currentDoc?.package.numbering
+                  ? getCachedNumberingMap(currentDoc.package.numbering)
+                  : null,
               })(view.state, view.dispatch);
             } else {
               applyStyle(action.value)(view.state, view.dispatch);
@@ -213,6 +219,20 @@ export function useFormattingActions({
     focusActiveEditor();
   }, [getActiveEditorView, focusActiveEditor]);
 
+  const handleInsertSectionBreakNextPage = useCallback(() => {
+    const view = getActiveEditorView();
+    if (!view) return;
+    insertSectionBreakNextPage(view.state, view.dispatch);
+    focusActiveEditor();
+  }, [getActiveEditorView, focusActiveEditor]);
+
+  const handleInsertSectionBreakContinuous = useCallback(() => {
+    const view = getActiveEditorView();
+    if (!view) return;
+    insertSectionBreakContinuous(view.state, view.dispatch);
+    focusActiveEditor();
+  }, [getActiveEditorView, focusActiveEditor]);
+
   const handleInsertTOC = useCallback(() => {
     const view = getActiveEditorView();
     if (!view) return;
@@ -224,6 +244,8 @@ export function useFormattingActions({
     handleFormat,
     handleInsertTable,
     handleInsertPageBreak,
+    handleInsertSectionBreakNextPage,
+    handleInsertSectionBreakContinuous,
     handleInsertTOC,
   };
 }

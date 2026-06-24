@@ -145,7 +145,7 @@ export type {
   DocumentBody,
 } from './content';
 
-export { pictureWatermarkDisplayEmu } from './content';
+export { pictureWatermarkDisplayEmu, DEFAULT_WATERMARK_PRESETS } from './content';
 
 // Styles, Theme, Fonts, Relationships & Media
 export type {
@@ -159,6 +159,7 @@ export type {
   Theme,
   FontInfo,
   FontTable,
+  FontEmbed,
   RelationshipType,
   Relationship,
   RelationshipMap,

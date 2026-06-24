@@ -31,6 +31,10 @@ import type { ImageSelectionInfo } from '../components/imageSelectionTypes';
 import type { Layout } from '@eigenpal/docx-editor-core/layout-engine';
 import type { HyperlinkPopupData } from '../components/ui/hyperlinkPopupTypes';
 import { useDragAutoScroll } from './useDragAutoScroll';
+import {
+  createCellDragTracker,
+  findCellPosFromPmPos,
+} from '@eigenpal/docx-editor-core/prosemirror/cellDragSelection';
 
 type TableResizeApi = {
   tryStartResize: (e: MouseEvent, view: EditorView) => boolean;
@@ -141,6 +145,9 @@ export function usePagesPointer(opts: UsePagesPointerOptions): UsePagesPointerRe
   // ─── Drag-to-select ─────────────────────────────────────────────────────
   let isDragging = false;
   let dragAnchor: number | null = null;
+  // Promote a drag that crosses table-cell boundaries into a CellSelection
+  // (shared with React via core), so multi-cell ops are reachable by dragging.
+  const cellDrag = createCellDragTracker();
 
   // Auto-scroll when a drag-select reaches the top/bottom edge of the scroll
   // container, extending the selection as it scrolls (parity with React).
@@ -263,11 +270,16 @@ export function usePagesPointer(opts: UsePagesPointerOptions): UsePagesPointerRe
       return;
     }
 
+    // viewportEl carries `transform: scale(zoom)`; its rect is screen-space.
+    // The button is an absolutely-positioned child of that scaled element, so
+    // its left/top live in the element's own (unscaled) coords. Divide the
+    // screen-space offset by zoom or it gets re-scaled and drifts (#928).
+    const zoom = opts.zoom.value || 1;
     const viewportRect = viewportEl.getBoundingClientRect();
     tableInsertButton.value = {
       type: hit.type,
-      x: hit.clientX - viewportRect.left,
-      y: hit.clientY - viewportRect.top,
+      x: (hit.clientX - viewportRect.left) / zoom,
+      y: (hit.clientY - viewportRect.top) / zoom,
       cellPmPos: hit.cellPmPos,
     };
     clearTableInsertTimer();
@@ -473,6 +485,7 @@ export function usePagesPointer(opts: UsePagesPointerOptions): UsePagesPointerRe
     const existing = map.get(edit.rId);
     if (existing) {
       existing.content = content;
+      existing.verbatimXml = undefined;
     }
     // Vue parity for the HF unification: after the inline overlay writes
     // back into `pkg.headers/footers[rId].content`, the persistent
@@ -638,6 +651,9 @@ export function usePagesPointer(opts: UsePagesPointerOptions): UsePagesPointerRe
       }
       dragAnchor = pos;
       isDragging = true;
+      // Record the cell under the press so a drag across cells promotes to a
+      // CellSelection (null when the press isn't inside a table).
+      cellDrag.begin(findCellPosFromPmPos(view, pos));
     }
 
     view.focus();
@@ -646,8 +662,17 @@ export function usePagesPointer(opts: UsePagesPointerOptions): UsePagesPointerRe
   function handleMouseMove(event: MouseEvent) {
     if (!isDragging || dragAnchor === null) return;
     const pos = resolvePos(event.clientX, event.clientY);
-    if (pos !== null && pos !== dragAnchor) {
-      setPmSelection(dragAnchor, pos);
+    if (pos !== null) {
+      const view = activeView();
+      // A drag that crosses cell boundaries becomes a CellSelection; when it
+      // does, skip the text-selection update for this move.
+      if (view && cellDrag.update(view, pos, event.clientX)) {
+        dragAutoScroll.updateMousePosition(event.clientX, event.clientY);
+        return;
+      }
+      if (pos !== dragAnchor) {
+        setPmSelection(dragAnchor, pos);
+      }
     }
     // Drive edge auto-scroll while dragging.
     dragAutoScroll.updateMousePosition(event.clientX, event.clientY);
@@ -655,6 +680,7 @@ export function usePagesPointer(opts: UsePagesPointerOptions): UsePagesPointerRe
 
   function handleMouseUp() {
     isDragging = false;
+    cellDrag.end();
     dragAutoScroll.stopAutoScroll();
   }
 

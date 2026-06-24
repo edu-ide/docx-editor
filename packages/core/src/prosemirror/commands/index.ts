@@ -73,7 +73,7 @@ export {
   setRtl,
   setLtr,
 } from './paragraph';
-export type { ResolvedStyleAttrs } from './paragraph';
+export type { ResolvedStyleAttrs, GenerateTOCOptions } from './paragraph';
 
 // Table operations
 export {
@@ -117,12 +117,20 @@ export type { TableContextInfo, BorderPreset } from './table';
 // Page break
 export { insertPageBreak } from './pageBreak';
 
+// Section breaks
+export { insertSectionBreakNextPage, insertSectionBreakContinuous } from './sectionBreak';
+
 // Image commands
-export { setImageWrapType, insertImageNode } from './image';
+export {
+  setImageWrapType,
+  insertImageNode,
+  insertImageFromFile,
+  INSERT_IMAGE_MAX_WIDTH_PX,
+} from './image';
 export type { AnchorWrapType, ImageLayoutTarget, SetImageWrapTypeOptions } from './image';
 
 // Table of Contents
-export { generateTOC } from './paragraph';
+export { generateTOC, generateTableOfContents } from './paragraph';
 
 // Comments and Track Changes
 export {

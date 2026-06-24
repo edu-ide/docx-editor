@@ -42,7 +42,10 @@
     "symbol": "符号",
     "help": "帮助",
     "reportIssue": "反馈问题",
-    "watermark": "水印"
+    "watermark": "水印",
+    "break": null,
+    "sectionBreakContinuous": null,
+    "sectionBreakNextPage": null
   },
   "formattingBar": {
     "groups": {
@@ -122,7 +125,8 @@
     "sansSerif": "Sans Serif",
     "serif": "Serif",
     "monospace": "Monospace",
-    "other": null
+    "other": null,
+    "documentFonts": null
   },
   "fontSize": {
     "decrease": "减小字号",
@@ -685,7 +689,8 @@
       "listTable4Accent3": "列表表格 4 强调色 3",
       "gridTable4Accent5": "网格表 4 强调色 5",
       "gridTable4Accent6": "网格表 4 强调色 6"
-    }
+    },
+    "selectTable": null
   },
   "tableAdvanced": {
     "verticalAlignment": "垂直对齐",

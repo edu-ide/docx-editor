@@ -170,6 +170,8 @@ function applyRunStyles(
     if (activeCommentId != null) {
       element.style.backgroundColor = 'rgba(255, 212, 0, 0.15)';
       element.style.borderBottom = '1px solid rgba(255, 212, 0, 0.4)';
+      element.style.cursor = 'pointer';
+      element.style.transition = 'background-color 0.15s ease';
       element.dataset.commentId = String(activeCommentId);
     }
   }
@@ -201,14 +203,24 @@ function applyRunStyles(
     element.style.textDecorationLine = decorations.join(' ');
   }
 
-  // Superscript/subscript
+  // Superscript/subscript. Use `position: relative` (a paint-only offset) to
+  // raise/lower the glyph rather than `vertical-align: super/sub`. CSS grows
+  // the line box to contain any vertical-align shift, so `super`/`sub` made the
+  // painted line taller than Word draws it — and taller than the line the
+  // measurement engine reserved (measuring is base-font only; it has no
+  // superscript awareness). A relative offset shifts only where the glyph is
+  // painted, leaving the in-flow box — and therefore the line height — unchanged.
+  // The `top` magnitudes are tuned to approximate Word's super/subscript raise;
+  // `font-size: 0.75em` already keeps the box shorter than the line.
   if (run.superscript) {
-    element.style.verticalAlign = 'super';
     element.style.fontSize = '0.75em';
+    element.style.position = 'relative';
+    element.style.top = '-0.4em';
   }
   if (run.subscript) {
-    element.style.verticalAlign = 'sub';
     element.style.fontSize = '0.75em';
+    element.style.position = 'relative';
+    element.style.top = '0.2em';
   }
 
   // Hidden run (OOXML w:vanish, §17.3.2.41). In Word's print/normal view
@@ -253,6 +265,24 @@ export function applyPmPositions(element: HTMLElement, pmStart?: number, pmEnd?:
   }
 }
 
+function applyInlineSdtWidgetAttrs(element: HTMLElement, run: TextRun): void {
+  const widget = run.inlineSdtWidget;
+  if (!widget) return;
+  element.classList.add('layout-inline-sdt-widget');
+  element.dataset.sdtWidget = widget.kind;
+  element.dataset.sdtGroupId = widget.groupId;
+  element.dataset.sdtPos = String(widget.pos);
+  if (widget.tag) element.dataset.sdtTag = widget.tag;
+  if (widget.alias) element.dataset.sdtAlias = widget.alias;
+  if (typeof widget.checked === 'boolean') {
+    element.dataset.sdtChecked = String(widget.checked);
+    element.setAttribute('aria-checked', String(widget.checked));
+  }
+  element.setAttribute('role', 'checkbox');
+  element.setAttribute('tabindex', '0');
+  element.setAttribute('aria-label', widget.alias || widget.tag || 'Checkbox content control');
+}
+
 /**
  * Render a text run
  */
@@ -266,6 +296,7 @@ export function renderTextRun(
 
   applyRunStyles(span, run, resolvedCommentIds);
   applyPmPositions(span, run.pmStart, run.pmEnd);
+  applyInlineSdtWidgetAttrs(span, run);
 
   // Handle hyperlinks
   if (run.hyperlink) {
@@ -481,6 +512,19 @@ function renderInlineImageRun(run: ImageRun, doc: Document): HTMLElement {
   // baseline/top would land flush with the line edge.)
   img.style.verticalAlign = 'middle';
 
+  // Fit the image to its container's content width (the text column or table
+  // cell) while preserving the run's aspect ratio: cap the width at 100% of the
+  // container and let `aspect-ratio` drive the height. Without this, a wide
+  // image in a narrow cell squashes (the explicit height stays while the width
+  // is clamped) or overflows the page entirely. The run's own aspect is used —
+  // not the image's natural aspect — so a deliberately stretched image keeps
+  // its shape. Behaves identically in React and Vue (both use this painter).
+  if (run.width > 0 && run.height > 0) {
+    img.style.height = 'auto';
+    img.style.aspectRatio = `${run.width} / ${run.height}`;
+    img.style.maxWidth = '100%';
+  }
+
   applyInlineImageDist(img, run);
   applyPmPositions(img, run.pmStart, run.pmEnd);
 
@@ -533,6 +577,7 @@ function renderBlockImage(run: ImageRun, doc: Document): HTMLElement {
   }
 
   applyPmPositions(container, run.pmStart, run.pmEnd);
+
   container.appendChild(img);
 
   return container;

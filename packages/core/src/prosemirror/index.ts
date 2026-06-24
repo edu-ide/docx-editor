@@ -61,9 +61,13 @@ export {
   selectionTrackerKey,
   createDocumentStylesPlugin,
   getDocumentStyleResolver,
+  documentContextKey,
+  createDocumentContextPlugin,
+  getDocumentTheme,
+  getDefaultTableStyleId,
   documentStylesKey,
 } from './plugins';
-export type { SelectionContext, SelectionChangeCallback } from './plugins';
+export type { SelectionContext, SelectionChangeCallback, DocumentContext } from './plugins';
 
 // Commands
 export {
@@ -160,8 +164,9 @@ export {
   insertPageBreak,
   // Table of Contents
   generateTOC,
+  generateTableOfContents,
 } from './commands';
-export type { TableContextInfo, BorderPreset } from './commands';
+export type { TableContextInfo, BorderPreset, GenerateTOCOptions } from './commands';
 
 /** Block content-control (SDT) discovery + edit on the live PM state. */
 export {
@@ -170,6 +175,7 @@ export {
   setContentControlContentTr,
   removeContentControlTr,
   setContentControlValueTr,
+  setContentControlValueAtPosTr,
   addRepeatingSectionItemTr,
   removeRepeatingSectionItemTr,
   type PMContentControl,

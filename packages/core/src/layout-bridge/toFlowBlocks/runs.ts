@@ -15,6 +15,7 @@ import type {
   FieldRun,
   RunFormatting,
 } from '../../layout-engine/types';
+import type { InlineSdtWidget } from '../../layout-engine/inlineSdtWidgets';
 import type { ParagraphAttrs as PMParagraphAttrs } from '../../prosemirror/schema/nodes';
 import type {
   TextColorAttrs,
@@ -84,14 +85,19 @@ function extractRunFormatting(marks: readonly Mark[], theme?: Theme | null): Run
 
       case 'fontSize': {
         const attrs = mark.attrs as FontSizeAttrs;
-        // Convert half-points to points
-        formatting.fontSize = attrs.size / 2;
+        const isRtl = marks.some((m) => m.type.name === 'rtl');
+        const size = isRtl && attrs.sizeCs != null ? attrs.sizeCs : attrs.size;
+        // Convert half-points to points (size may be null when only sizeCs is set)
+        if (size != null) {
+          formatting.fontSize = size / 2;
+        }
         break;
       }
 
       case 'fontFamily': {
         const attrs = mark.attrs as FontFamilyAttrs;
-        formatting.fontFamily = attrs.ascii || attrs.hAnsi;
+        const isRtl = marks.some((m) => m.type.name === 'rtl');
+        formatting.fontFamily = isRtl && attrs.cs ? attrs.cs : attrs.ascii || attrs.hAnsi;
         break;
       }
 
@@ -215,6 +221,16 @@ function extractRunFormatting(marks: readonly Mark[], theme?: Theme | null): Run
         } else {
           formatting.footnoteRefId = id;
         }
+        // Superscript is NOT implied by the anchor. In Word the raised
+        // appearance comes entirely from the FootnoteReference / EndnoteReference
+        // character style (w:vertAlign="superscript"); a bare anchor run with no
+        // rStyle (e.g. Pandoc's `<w:r><w:footnoteReference/></w:r>`) renders at
+        // the baseline. We honor that: the `superscript` mark — set from the
+        // run's own vertAlign or resolved from the rStyle's style chain — is the
+        // single source of truth, so docx-editor matches Word rather than
+        // "correcting" an unstyled anchor (which diverged from Word; LibreOffice
+        // auto-raises, Word does not). Build pipelines that emit bare anchors
+        // must apply the character style at the source.
         break;
       }
 
@@ -292,6 +308,24 @@ function stripTocHyperlinkStyle(formatting: RunFormatting): void {
   delete formatting.underline;
 }
 
+function isContentLocked(lock: unknown): boolean {
+  return lock === 'contentLocked' || lock === 'sdtContentLocked';
+}
+
+function inlineCheckboxWidgetFor(child: PMNode, childPos: number): InlineSdtWidget | undefined {
+  const attrs = child.attrs as Record<string, unknown>;
+  if (attrs.sdtType !== 'checkbox') return undefined;
+  if (isContentLocked(attrs.lock) || attrs.dataBinding != null) return undefined;
+  return {
+    kind: 'checkbox',
+    groupId: `sdt@${childPos}`,
+    pos: childPos,
+    tag: attrs.tag != null ? String(attrs.tag) : undefined,
+    alias: attrs.alias != null ? String(attrs.alias) : undefined,
+    checked: typeof attrs.checked === 'boolean' ? attrs.checked : undefined,
+  };
+}
+
 /**
  * Convert a paragraph node to runs.
  */
@@ -312,7 +346,11 @@ export function paragraphToRuns(
 
   // Single dispatcher for one inline PM child. Recurses on `sdt` so nested
   // content controls keep contributing runs at the right pmStart/pmEnd.
-  function pushRunsForChild(child: PMNode, childPos: number): void {
+  function pushRunsForChild(
+    child: PMNode,
+    childPos: number,
+    inlineSdtWidget?: InlineSdtWidget
+  ): void {
     if (child.isText && child.text) {
       const formatting = extractRunFormatting(child.marks, theme);
       if (inTocParagraph) stripTocHyperlinkStyle(formatting);
@@ -323,6 +361,7 @@ export function paragraphToRuns(
         ...formatting,
         pmStart: childPos,
         pmEnd: childPos + child.nodeSize,
+        inlineSdtWidget,
       };
       runs.push(run);
     } else if (child.type.name === 'hardBreak') {
@@ -419,9 +458,10 @@ export function paragraphToRuns(
         pmEnd: childPos + child.nodeSize,
       });
     } else if (child.type.name === 'sdt') {
+      const inlineWidget = inlineCheckboxWidgetFor(child, childPos) ?? inlineSdtWidget;
       const sdtInnerOffset = childPos + 1; // +1 for opening tag
       child.forEach((sdtChild, sdtChildOffset) => {
-        pushRunsForChild(sdtChild, sdtInnerOffset + sdtChildOffset);
+        pushRunsForChild(sdtChild, sdtInnerOffset + sdtChildOffset, inlineWidget);
       });
     }
   }

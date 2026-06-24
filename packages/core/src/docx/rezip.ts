@@ -51,6 +51,7 @@ import {
 import { processNewHyperlinks } from './rezip/hyperlinks';
 import {
   ensureHeaderFooterParts,
+  ensureNumberingPart,
   serializeCommentsToZip,
   serializeHeadersFootersToZip,
   serializeFootnotesToZip,
@@ -169,6 +170,10 @@ export async function repackDocx(doc: Document, options: RepackOptions = {}): Pr
 
   await ensureHeaderFooterParts(exportDocument, newZip, compressionLevel);
 
+  // Synthesize word/numbering.xml for documents that reference list numIds but
+  // have no original numbering part to preserve (e.g. createDocx()).
+  await ensureNumberingPart(exportDocument, newZip, compressionLevel);
+
   // Serialize comments
   await serializeCommentsToZip(exportDocument, newZip, compressionLevel);
 
@@ -258,6 +263,10 @@ export async function repackDocxFromRaw(
   serializeHeadersFootersToZip(exportDocument, newZip, compressionLevel);
 
   await ensureHeaderFooterParts(exportDocument, newZip, compressionLevel);
+
+  // Synthesize word/numbering.xml for documents that reference list numIds but
+  // have no original numbering part to preserve (e.g. createDocx()).
+  await ensureNumberingPart(exportDocument, newZip, compressionLevel);
 
   // Serialize comments
   await serializeCommentsToZip(exportDocument, newZip, compressionLevel);
@@ -542,7 +551,10 @@ export function updateCoreProperties(
     // Update dcterms:modified
     if (result.includes('<dcterms:modified')) {
       result = result.replace(
-        /<dcterms:modified[^>]*>[^<]*<\/dcterms:modified>/,
+        // `[^<>]*` (not `[^>]*`) for the attribute span: disallowing `<` stops
+        // the match from gobbling later `<dcterms:modified` text on malformed
+        // core.xml, which is what made this backtrack polynomially.
+        /<dcterms:modified[^<>]*>[^<]*<\/dcterms:modified>/,
         `<dcterms:modified xsi:type="dcterms:W3CDTF">${now}</dcterms:modified>`
       );
     } else {

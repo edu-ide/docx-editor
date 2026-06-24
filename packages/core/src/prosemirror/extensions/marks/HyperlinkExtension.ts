@@ -4,6 +4,7 @@
 
 import { createMarkExtension } from '../create';
 import { isMarkActive } from './markUtils';
+import { sanitizeHref } from '../../../utils/sanitizeHref';
 import type { HyperlinkAttrs } from '../../schema/marks';
 import type { Command, EditorState } from 'prosemirror-state';
 import type { Mark } from 'prosemirror-model';
@@ -139,8 +140,10 @@ export const HyperlinkExtension = createMarkExtension({
         tag: 'a[href]',
         getAttrs: (dom) => {
           const element = dom as HTMLAnchorElement;
+          const href = sanitizeHref(element.getAttribute('href'));
+          if (!href) return false;
           return {
-            href: element.getAttribute('href') || '',
+            href,
             tooltip: element.getAttribute('title') || undefined,
           };
         },

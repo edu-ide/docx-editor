@@ -39,8 +39,8 @@ export const docxAgentTools: AgentToolDefinition<any>[];
 // @public
 export class DocxReviewer {
     constructor(document: Document_2, author?: string, originalBuffer?: ArrayBuffer);
-    acceptAll(): number;
-    acceptChange(id: number): void;
+    acceptAll(opts?: AcceptChangesOptions): number;
+    acceptChange(target: number | ReviewChange): void;
     addComment(paragraphIndex: number, text: string): number;
     addComment(options: AddCommentOptions): number;
     applyReview(ops: BatchReviewOptions): BatchResult;
@@ -54,8 +54,8 @@ export class DocxReviewer {
     proposeInsertion(options: ProposeInsertionOptions): void;
     // @deprecated (undocumented)
     proposeReplacement(options: ProposeReplacementOptions): void;
-    rejectAll(): number;
-    rejectChange(id: number): void;
+    rejectAll(opts?: AcceptChangesOptions): number;
+    rejectChange(target: number | ReviewChange): void;
     removeComment(commentId: number): void;
     replace(paragraphIndex: number, search: string, replaceWith: string): void;
     replace(options: ProposeReplacementOptions): void;
@@ -85,12 +85,13 @@ export interface EditorBridge {
     }): PageContent[];
     getSelection(): SelectionInfo | null;
     getTotalPages(): number;
+    insertBreak(options: InsertBreakOptions): boolean;
     onContentChange(listener: (event: ContentChangeEvent) => void): () => void;
     onSelectionChange(listener: (event: SelectionChangeEvent) => void): () => void;
     proposeChange(options: ProposeChangeOptions): boolean;
     replyTo(commentId: number, options: ReplyOptions): number | null;
     resolveComment(commentId: number): void;
-    scrollTo(paraId: string): boolean;
+    scrollTo(paraId: string, options?: ScrollToParaIdOptions): boolean;
     setParagraphStyle(options: SetParagraphStyleOptions): boolean;
 }
 

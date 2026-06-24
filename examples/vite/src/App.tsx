@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
-import { createEmptyDocument, findStartPosForParaId } from '@eigenpal/docx-editor-core';
+import { createEmptyDocument, findStartPosForParaId, parseDocx } from '@eigenpal/docx-editor-core';
 import { setSuggestionMode } from '@eigenpal/docx-editor-core/prosemirror/plugins';
 // Re-exported by core, so the demo needs no direct `prosemirror-state` dep
 // (which would break the production build — it isn't in examples/vite deps).
@@ -23,6 +23,7 @@ import {
 } from '@eigenpal/docx-editor-agents/react';
 import { ExampleSwitcher } from '../../shared/ExampleSwitcher';
 import { AdapterSwitcher } from '../../shared/AdapterSwitcher';
+import { BrandLogo } from '../../shared/BrandLogo';
 
 function extractDocumentText(value: unknown): string {
   if (!value || typeof value !== 'object') return '';
@@ -53,8 +54,8 @@ const styles: Record<string, React.CSSProperties> = {
   },
   fileInputLabel: {
     padding: '6px 12px',
-    background: '#0f172a',
-    color: '#fff',
+    background: 'var(--doc-text)',
+    color: 'var(--doc-on-primary)',
     borderRadius: '6px',
     cursor: 'pointer',
     fontSize: '13px',
@@ -64,21 +65,21 @@ const styles: Record<string, React.CSSProperties> = {
   },
   button: {
     padding: '6px 12px',
-    background: '#fff',
-    border: '1px solid #e2e8f0',
+    background: 'var(--doc-surface)',
+    border: '1px solid var(--doc-border)',
     borderRadius: '6px',
     cursor: 'pointer',
     fontSize: '13px',
     fontWeight: 500,
-    color: '#334155',
+    color: 'var(--doc-text)',
     transition: 'all 0.15s',
     whiteSpace: 'nowrap',
   },
   newButton: {
     padding: '6px 12px',
-    background: '#f1f5f9',
-    color: '#334155',
-    border: '1px solid #e2e8f0',
+    background: 'var(--doc-bg-subtle)',
+    color: 'var(--doc-text)',
+    border: '1px solid var(--doc-border)',
     borderRadius: '6px',
     cursor: 'pointer',
     fontSize: '13px',
@@ -88,9 +89,9 @@ const styles: Record<string, React.CSSProperties> = {
   },
   status: {
     fontSize: '12px',
-    color: '#64748b',
+    color: 'var(--doc-text-muted)',
     padding: '4px 8px',
-    background: '#f1f5f9',
+    background: 'var(--doc-bg-subtle)',
     borderRadius: '4px',
   },
 };
@@ -117,6 +118,101 @@ function useResponsiveLayout() {
   return { zoom, isMobile };
 }
 
+/** Fumadocs-style segmented light/dark toggle (sun/moon, sliding highlight). */
+function ThemeToggle({
+  value,
+  onChange,
+}: {
+  value: 'light' | 'dark';
+  onChange: (m: 'light' | 'dark') => void;
+}) {
+  const options: { mode: 'light' | 'dark'; label: string; icon: React.ReactNode }[] = [
+    {
+      mode: 'light',
+      label: 'Light',
+      icon: (
+        <svg
+          width="15"
+          height="15"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <circle cx="12" cy="12" r="4" />
+          <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+        </svg>
+      ),
+    },
+    {
+      mode: 'dark',
+      label: 'Dark',
+      icon: (
+        <svg
+          width="15"
+          height="15"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
+        </svg>
+      ),
+    },
+  ];
+  return (
+    <div
+      role="radiogroup"
+      aria-label="Color theme"
+      onMouseDown={(e) => e.stopPropagation()}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 2,
+        padding: 2,
+        borderRadius: 9999,
+        border: '1px solid var(--doc-border)',
+        background: 'var(--doc-bg-subtle)',
+      }}
+    >
+      {options.map((opt) => {
+        const selected = value === opt.mode;
+        return (
+          <button
+            key={opt.mode}
+            type="button"
+            role="radio"
+            aria-checked={selected}
+            title={`${opt.label} mode`}
+            onClick={() => onChange(opt.mode)}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 26,
+              height: 26,
+              border: 'none',
+              borderRadius: 9999,
+              cursor: 'pointer',
+              transition: 'background 0.15s, color 0.15s',
+              background: selected ? 'var(--doc-surface)' : 'transparent',
+              boxShadow: selected ? '0 1px 2px var(--doc-shadow-subtle)' : 'none',
+              color: selected ? 'var(--doc-text)' : 'var(--doc-text-subtle)',
+            }}
+          >
+            {opt.icon}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export function App() {
   const randomAuthor = useMemo(
     () => `Docx Editor User ${Math.floor(Math.random() * 900) + 100}`,
@@ -125,8 +221,9 @@ export function App() {
   const editorRef = useRef<DocxEditorRef>(null);
   const [currentDocument, setCurrentDocument] = useState<Document | null>(null);
   const [documentBuffer, setDocumentBuffer] = useState<ArrayBuffer | null>(null);
-  const [fileName, setFileName] = useState<string>('docx-editor-demo.docx');
+  const [fileName, setFileName] = useState<string>('sample.docx');
   const [status, setStatus] = useState<string>('');
+  const [colorMode, setColorMode] = useState<'light' | 'dark'>('light');
   const disableFindReplaceShortcuts = useMemo(
     () => new URLSearchParams(window.location.search).get('disableFindReplaceShortcuts') === '1',
     []
@@ -160,13 +257,21 @@ export function App() {
   // (so existing tests are unaffected); ?empty=1 boots from an empty document
   // instead, giving tests that build their own content a deterministic start
   // that doesn't race the demo fetch.
-  const { isE2E, e2eBootEmpty } = useMemo(() => {
-    if (typeof window === 'undefined') return { isE2E: false, e2eBootEmpty: false };
+  const { isE2E, e2eBootEmpty, e2eExternalContent } = useMemo(() => {
+    if (typeof window === 'undefined')
+      return { isE2E: false, e2eBootEmpty: false, e2eExternalContent: false };
     const params = new URLSearchParams(window.location.search);
     const env = import.meta.env;
     const e2e =
       params.get('e2e') === '1' || env.MODE === 'test' || env.VITE_DOCX_EDITOR_E2E === '1';
-    return { isE2E: e2e, e2eBootEmpty: e2e && params.get('empty') === '1' };
+    return {
+      isE2E: e2e,
+      e2eBootEmpty: e2e && params.get('empty') === '1',
+      // Mounts <DocxEditor document={parsed} externalContent /> so e2e can
+      // verify headers/styles render from `document` even when the body PM
+      // is populated externally (e.g. ySyncPlugin).
+      e2eExternalContent: e2e && params.get('externalContent') === '1',
+    };
   }, []);
 
   const { zoom: autoZoom, isMobile } = useResponsiveLayout();
@@ -225,6 +330,17 @@ export function App() {
       scrollToPosition: (pmPos: number) => {
         editorRef.current?.scrollToPosition(pmPos);
       },
+      getDocSize: () => {
+        const state = editorRef.current?.getEditorRef()?.getState?.();
+        return state?.doc.content.size ?? null;
+      },
+      highlightRange: (from: number, to: number) => {
+        editorRef.current?.highlightRange(from, to);
+      },
+      scrollToCommentId: (commentId: number) =>
+        editorRef.current?.scrollToCommentId(commentId) ?? false,
+      scrollToChangeId: (revisionId: number) =>
+        editorRef.current?.scrollToChangeId(revisionId) ?? false,
       scrollToPage: (pageNumber: number) => {
         editorRef.current?.scrollToPage(pageNumber);
       },
@@ -602,21 +718,26 @@ export function App() {
     if (e2eBootEmpty) {
       setCurrentDocument(createEmptyDocument());
       setFileName('Untitled.docx');
+      // externalContent skips useDocumentLoader's prop-change reload, so the
+      // editor only sees `document` via useDocumentHistory's initial value.
+      // Bump the key so it remounts with the seeded empty doc and the
+      // toolbar (and its file input) render for the test to drive.
+      if (e2eExternalContent) setDocVersion((v) => v + 1);
       return;
     }
-    fetch(`${import.meta.env.BASE_URL}docx-editor-demo.docx`)
+    fetch(`${import.meta.env.BASE_URL}sample.docx`)
       .then((res) => res.arrayBuffer())
       .then((buffer) => {
         if (userStartedOwnDocRef.current) return; // user already moved on
         setDocumentBuffer(buffer);
-        setFileName('docx-editor-demo.docx');
+        setFileName('sample.docx');
       })
       .catch(() => {
         if (userStartedOwnDocRef.current) return;
         setCurrentDocument(createEmptyDocument());
         setFileName('Untitled.docx');
       });
-  }, [e2eBootEmpty]);
+  }, [e2eBootEmpty, e2eExternalContent]);
 
   const handleNewDocument = useCallback(() => {
     userStartedOwnDocRef.current = true;
@@ -631,23 +752,32 @@ export function App() {
     setDocVersion((v) => v + 1);
   }, []);
 
-  const handleFileSelect = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
+  const handleFileSelect = useCallback(
+    async (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      if (!file) return;
 
-    try {
-      userStartedOwnDocRef.current = true;
-      setStatus('Loading...');
-      const buffer = await file.arrayBuffer();
-      setCurrentDocument(null);
-      setDocumentBuffer(buffer);
-      setFileName(file.name);
-      setStatus('');
-      setDocVersion((v) => v + 1);
-    } catch {
-      setStatus('Error loading file');
-    }
-  }, []);
+      try {
+        userStartedOwnDocRef.current = true;
+        setStatus('Loading...');
+        const buffer = await file.arrayBuffer();
+        if (e2eExternalContent) {
+          const parsed = await parseDocx(buffer);
+          setDocumentBuffer(null);
+          setCurrentDocument(parsed);
+        } else {
+          setCurrentDocument(null);
+          setDocumentBuffer(buffer);
+        }
+        setFileName(file.name);
+        setStatus('');
+        setDocVersion((v) => v + 1);
+      } catch {
+        setStatus('Error loading file');
+      }
+    },
+    [e2eExternalContent]
+  );
 
   const handleSave = useCallback(async () => {
     if (!editorRef.current) return;
@@ -682,7 +812,8 @@ export function App() {
 
   const renderLogo = useCallback(
     () => (
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <BrandLogo />
         <AdapterSwitcher current="react" />
         <ExampleSwitcher current="Vite" />
       </div>
@@ -693,6 +824,7 @@ export function App() {
   const renderTitleBarRight = useCallback(
     () => (
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <ThemeToggle value={colorMode} onChange={setColorMode} />
         <label style={styles.fileInputLabel} onMouseDown={(e) => e.stopPropagation()}>
           <input
             type="file"
@@ -711,7 +843,7 @@ export function App() {
         {status && <span style={styles.status}>{status}</span>}
       </div>
     ),
-    [handleFileSelect, handleNewDocument, handleSave, status]
+    [handleFileSelect, handleNewDocument, handleSave, status, colorMode]
   );
 
   // Opt-in agent panel for E2E + manual smoke testing. Adds the right-hand
@@ -784,7 +916,9 @@ export function App() {
           ref={editorRef}
           document={documentBuffer ? undefined : currentDocument}
           documentBuffer={documentBuffer}
+          externalContent={e2eExternalContent}
           author={randomAuthor}
+          colorMode={colorMode}
           onError={handleError}
           showToolbar={true}
           showRuler={!isMobile}
@@ -792,6 +926,7 @@ export function App() {
           initialZoom={autoZoom}
           disableFindReplaceShortcuts={disableFindReplaceShortcuts}
           fonts={customFonts}
+          watermarkPresets={['SAMPLE', 'DEMO ONLY', 'PREVIEW', 'NOT FOR DISTRIBUTION']}
           renderLogo={renderLogo}
           documentName={fileName}
           onDocumentNameChange={setFileName}

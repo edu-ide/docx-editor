@@ -15,6 +15,10 @@
 
 // Top-level archive I/O
 export { parseDocx } from './parser';
+export type { ParseOptions, MediaResolver, ProgressCallback } from './parser';
+export { extractMetafileRaster, isMetafileMimeType } from './metafileRaster';
+export type { ExtractedRaster } from './metafileRaster';
+export { parseFontTable } from './fontTableParser';
 export { repackDocx, createDocx, updateMultipleFiles } from './rezip';
 export { attemptSelectiveSave } from './selectiveSave';
 export { buildPatchedDocumentXml, validatePatchSafety } from './selectiveXmlPatch';
@@ -89,6 +93,9 @@ export {
 // Numbering / lists
 export {
   parseNumbering,
+  createNumberingMap,
+  getCachedNumberingMap,
+  computeListRendering,
   formatNumber,
   renderListMarker,
   getBulletCharacter,

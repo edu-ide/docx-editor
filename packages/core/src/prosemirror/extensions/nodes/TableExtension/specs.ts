@@ -23,10 +23,20 @@ export const tableSpec: NodeSpec = {
     widthType: { default: null },
     justification: { default: null },
     columnWidths: { default: null },
+    // `w:tblLayout` type ('fixed' | 'autofit'). Tracked as a first-class attr
+    // so explicit column widths survive the round-trip: without `fixed`, Word
+    // autofits and ignores `w:tblGrid`/`w:tcW` (issue #781).
+    tableLayout: { default: null },
     floating: { default: null },
     cellMargins: { default: null },
     look: { default: null },
+    bidi: { default: null },
     _originalFormatting: { default: null },
+    // Block-level bookmark markers that wrap this table's `w:tbl` in the
+    // parent container. Opaque anchors — not rendered. Carried so block
+    // bookmarks survive the toProseDoc → fromProseDoc round trip.
+    leadingBlockMarkers: { default: null },
+    trailingBlockMarkers: { default: null },
     // Table-property change history (`<w:tblPrChange>`). Round-trip only;
     // accept/reject by id resolves the entry. Serializer clamps to one entry.
     tblPrChange: { default: null },
@@ -39,6 +49,7 @@ export const tableSpec: NodeSpec = {
         return {
           styleId: element.dataset.styleId || undefined,
           justification: element.dataset.justification as TableAttrs['justification'] | undefined,
+          bidi: element.dataset.bidi === 'true' || element.dir === 'rtl' || undefined,
         };
       },
     },
@@ -51,7 +62,16 @@ export const tableSpec: NodeSpec = {
       domAttrs['data-style-id'] = attrs.styleId;
     }
 
+    if (attrs.bidi) {
+      domAttrs['data-bidi'] = 'true';
+      domAttrs.dir = 'rtl';
+    }
+
     const styles: string[] = ['border-collapse: collapse'];
+
+    if (attrs.bidi) {
+      styles.push('direction: rtl');
+    }
 
     if (attrs.width && attrs.widthType === 'pct') {
       styles.push(`width: ${attrs.width / 50}%`);

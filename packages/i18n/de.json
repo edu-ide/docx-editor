@@ -42,7 +42,10 @@
     "openShortcut": "Strg+O",
     "save": "Speichern",
     "saveShortcut": "Strg+S",
-    "watermark": "Wasserzeichen"
+    "watermark": "Wasserzeichen",
+    "break": null,
+    "sectionBreakContinuous": null,
+    "sectionBreakNextPage": null
   },
   "formattingBar": {
     "groups": {
@@ -122,7 +125,8 @@
     "sansSerif": "Sans Serif",
     "serif": "Serif",
     "monospace": "Monospace",
-    "other": "Andere"
+    "other": "Andere",
+    "documentFonts": null
   },
   "fontSize": {
     "decrease": "Schriftgrad verkleinern",
@@ -685,7 +689,8 @@
       "listTable4Accent3": "Listentabelle 4 Akzent 3",
       "gridTable4Accent5": "Rastertabelle 4 Akzent 5",
       "gridTable4Accent6": "Rastertabelle 4 Akzent 6"
-    }
+    },
+    "selectTable": null
   },
   "tableAdvanced": {
     "verticalAlignment": "Vertikale Ausrichtung",

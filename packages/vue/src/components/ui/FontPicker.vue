@@ -51,6 +51,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import type { FontOption } from '@eigenpal/docx-editor-core/utils/fontOptions';
+import { getPrimaryFontFamily } from './fontPickerValue';
 
 export type { FontOption };
 
@@ -100,7 +101,10 @@ const groups = computed(() => {
 const displayValue = computed(() => {
   if (!props.value) return props.placeholder;
   const m = resolvedFonts.value.find(
-    (f) => f.fontFamily === props.value || f.name.toLowerCase() === props.value!.toLowerCase()
+    (f) =>
+      f.fontFamily === props.value ||
+      f.name.toLowerCase() === props.value!.toLowerCase() ||
+      getPrimaryFontFamily(f.fontFamily).toLowerCase() === props.value!.toLowerCase()
   );
   return m?.name ?? props.value;
 });
@@ -108,7 +112,7 @@ const displayValue = computed(() => {
 function onChange(e: Event) {
   const name = (e.target as HTMLSelectElement).value;
   const font = resolvedFonts.value.find((f) => f.name === name);
-  emit('change', font?.fontFamily ?? name);
+  emit('change', font ? getPrimaryFontFamily(font.fontFamily) || font.name : name);
 }
 </script>
 
@@ -117,10 +121,10 @@ function onChange(e: Event) {
   height: 28px;
   font-size: 13px;
   min-width: 100px;
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--doc-border-dark);
   border-radius: 4px;
   padding: 0 6px;
-  background: #fff;
+  background: var(--doc-surface);
   cursor: pointer;
 }
 .docx-font-picker:disabled {

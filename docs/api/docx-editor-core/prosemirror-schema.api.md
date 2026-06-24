@@ -43,7 +43,9 @@ export interface FontFamilyAttrs {
 // @public
 export interface FontSizeAttrs {
     // (undocumented)
-    size: number;
+    size?: number | null;
+    // (undocumented)
+    sizeCs?: number | null;
 }
 
 // @public
@@ -152,6 +154,7 @@ export interface ParagraphAttrs {
     keepLines?: boolean;
     // (undocumented)
     keepNext?: boolean;
+    leadingBlockMarkers?: BlockBookmarkMarkers;
     // (undocumented)
     lineSpacing?: number;
     // (undocumented)
@@ -166,12 +169,23 @@ export interface ParagraphAttrs {
     listMarkerSuffix?: 'tab' | 'space' | 'nothing';
     listNumFmt?: NumberFormat;
     listStartOverride?: number;
+    loneBookmarkEndIds?: number[];
     // (undocumented)
     numPr?: {
         numId?: number;
         ilvl?: number;
     };
+    numPrFromStyle?: {
+        numId?: number;
+        ilvl?: number;
+    };
     _originalFormatting?: ParagraphFormatting;
+    _originalRunBoundaries?: Array<{
+        text: string;
+        marksKey?: string;
+        formatting?: TextFormatting;
+        propertyChanges?: RunPropertyChange[];
+    }>;
     // (undocumented)
     outlineLevel?: number;
     // (undocumented)
@@ -198,6 +212,7 @@ export interface ParagraphAttrs {
     tabs?: TabStop[];
     // (undocumented)
     textId?: string;
+    trailingBlockMarkers?: BlockBookmarkMarkers;
 }
 
 // @public (undocumented)
@@ -208,6 +223,7 @@ export const singletonManager: ExtensionManager;
 
 // @public
 export interface TableAttrs {
+    bidi?: boolean;
     cellMargins?: {
         top?: number;
         bottom?: number;
@@ -217,10 +233,13 @@ export interface TableAttrs {
     columnWidths?: number[];
     floating?: FloatingTableProperties;
     justification?: 'left' | 'center' | 'right';
+    leadingBlockMarkers?: BlockBookmarkMarkers;
     look?: TableLook;
     _originalFormatting?: TableFormatting;
     styleId?: string;
+    tableLayout?: 'fixed' | 'autofit' | null;
     tblPrChange?: TablePropertyChange[] | null;
+    trailingBlockMarkers?: BlockBookmarkMarkers;
     width?: number;
     widthType?: string;
 }

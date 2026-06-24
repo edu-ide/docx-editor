@@ -18,12 +18,9 @@
     ref="rootRef"
     class="unified-sidebar"
     :style="asideStyle"
-    @mousedown.stop
+    @mousedown="onSidebarMouseDown"
   >
-    <div
-      class="unified-sidebar__inner"
-      :style="{ minHeight: minHeightPx + 'px' }"
-    >
+    <div class="unified-sidebar__inner" :style="{ minHeight: minHeightPx + 'px' }">
       <!-- Every item — add-comment input, comments, tracked changes —
            flows through the same `items` list and the shared
            `resolveItemPositions` collision pass (mirrors React's
@@ -65,6 +62,7 @@
           <TrackedChangeCard
             v-else-if="item.kind === 'tracked-change'"
             :change="item.change!"
+            :replies="item.replies ?? []"
             :expanded="expandedId === item.id"
             @click="toggleExpanded(item.id)"
             @accept="(from: number, to: number) => $emit('accept-change', from, to)"
@@ -90,7 +88,10 @@ import AddCommentCard from './sidebar/AddCommentCard.vue';
 import { useCommentSidebarItems } from '../composables/useCommentSidebarItems';
 import { resolveItemPositions } from './sidebar/resolveItemPositions';
 
-import { SIDEBAR_DOCUMENT_SHIFT } from '@eigenpal/docx-editor-core/utils/sidebarConstants';
+import {
+  SIDEBAR_DOCUMENT_SHIFT,
+  SIDEBAR_WIDTH,
+} from '@eigenpal/docx-editor-core/utils/sidebarConstants';
 
 const props = defineProps<{
   isOpen: boolean;
@@ -143,6 +144,21 @@ function toggleExpanded(id: string) {
   emit('update:activeItemId', next);
 }
 
+// Always stop sidebar mousedowns from reaching the editor (was `@mousedown.stop`,
+// which prevents the click from moving the PM cursor / stealing focus). On top
+// of that, clicking the empty sidebar background — anywhere that isn't a card
+// slot — collapses the expanded item, matching React (where clicking the grey
+// gutter behind the cards deselects). Card clicks are handled by each card.
+function onSidebarMouseDown(e: MouseEvent) {
+  e.stopPropagation();
+  const target = e.target as HTMLElement;
+  if (target.closest('.unified-sidebar__card-slot')) return;
+  if (expandedId.value !== null) {
+    localExpanded.value = null;
+    emit('update:activeItemId', null);
+  }
+}
+
 // Single source of truth for the item list — shared with React via
 // the same-named composable. Comments, tracked changes AND the
 // add-comment input all live here, so they go through one layout pass.
@@ -163,6 +179,31 @@ const resolvedY = ref<Map<string, number>>(new Map());
 // at its last-known Y during transient layout instead of popping it out.
 const lastKnown = new Map<string, number>();
 let resizeObserver: ResizeObserver | null = null;
+// Observes every card slot. A card grows when it expands (reply input +
+// thread mount) or when its reply textarea auto-grows; the pagesContainer
+// observer never sees that, so without this the cards below stay stacked at
+// the collapsed height and the expanded card overlaps its neighbour.
+// Observing the slots re-runs the collision pass on any height change.
+let cardResizeObserver: ResizeObserver | null = null;
+// The slot elements currently observed — keyed by element identity, NOT by
+// card id. After a sidebar close/reopen the same ids reappear on brand-new
+// DOM nodes, so an id-string guard would keep observing detached nodes;
+// comparing elements re-binds to the live ones. Re-`observe()` is skipped
+// when the element set is unchanged (it would otherwise re-fire the
+// initial callback and spin recompute).
+let observedSlots = new Set<HTMLElement>();
+
+function syncCardObservers() {
+  const root = rootRef.value;
+  if (!root || !cardResizeObserver) return;
+  const slots = new Set(root.querySelectorAll<HTMLElement>('[data-card-id]'));
+  if (slots.size === observedSlots.size && [...slots].every((el) => observedSlots.has(el))) {
+    return;
+  }
+  cardResizeObserver.disconnect();
+  for (const el of slots) cardResizeObserver.observe(el);
+  observedSlots = slots;
+}
 
 function computePositions() {
   const container = props.pagesContainer;
@@ -258,6 +299,10 @@ function computePositions() {
     map.set(item.id, y);
   }
   resolvedY.value = map;
+
+  // Cards are in the DOM now — observe each slot so a later height change
+  // (expand, reply thread render, textarea growth) re-runs this pass.
+  syncCardObservers();
 }
 
 const minHeightPx = computed(() => {
@@ -276,7 +321,8 @@ const minHeightPx = computed(() => {
 // stale calc) put the rail ~352px past the page edge whenever the
 // shift was active.
 const SIDEBAR_GAP = 16;
-const SIDEBAR_WIDTH = 300;
+// SIDEBAR_WIDTH is imported from core (340) so React and Vue rails match and
+// stay consistent with SIDEBAR_DOCUMENT_SHIFT (also derived from it).
 // Dynamic CSS boost for the expanded item. Mirrors React
 // DocxEditor.tsx:5029-5044: brighten the comment-anchor highlight
 // (yellow) for the focused comment, and the tracked-change
@@ -361,7 +407,7 @@ function recompute() {
 // post-transform coords, so a zoom change shifts every anchor.
 watch(
   () => [
-    items.value.length,
+    items.value,
     expandedId.value,
     props.pagesContainer,
     props.pageWidthPx,
@@ -398,6 +444,9 @@ function bindScrollListener() {
 }
 
 onMounted(() => {
+  // Watches card-slot height changes (expand / reply thread / textarea).
+  // computePositions() binds the observations once cards render.
+  cardResizeObserver = new ResizeObserver(() => recompute());
   recompute();
   // Bind ResizeObserver once pagesContainer is non-null.
   if (props.pagesContainer) {
@@ -409,7 +458,7 @@ onMounted(() => {
 
 watch(
   () => props.pagesContainer,
-  (el, _old) => {
+  (el) => {
     resizeObserver?.disconnect();
     resizeObserver = null;
     if (el) {
@@ -422,6 +471,7 @@ watch(
 
 onBeforeUnmount(() => {
   resizeObserver?.disconnect();
+  cardResizeObserver?.disconnect();
   if (scrollParent) scrollParent.removeEventListener('scroll', recompute);
 });
 </script>

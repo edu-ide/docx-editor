@@ -29,6 +29,7 @@
  * | `Document.onSelectionChanged.add()` | `onSelectionChange(listener)`         |
  * | `Range.font.bold` / `italic` / `color` / `size` / `name` | `applyFormatting({paraId, search?, marks})` |
  * | `ParagraphFormat.style` / `applyStyle(...)` | `setParagraphStyle({paraId, styleId})` |
+ * | `Range.insertBreak(BreakType.*)`    | `insertBreak({paraId, type})`         |
  *
  * ## Beyond Word's surface (paged-document affordances)
  *
@@ -64,7 +65,12 @@
  * will then enforce the new contract.
  */
 
-import type { EditorBridge, ContentChangeEvent, SelectionChangeEvent } from './bridge';
+import type {
+  EditorBridge,
+  ContentChangeEvent,
+  SelectionChangeEvent,
+  ScrollToParaIdOptions,
+} from './bridge';
 import type {
   ContentBlock,
   GetContentOptions,
@@ -156,7 +162,7 @@ export interface WordCompatBridge {
   // ── Navigate ─────────────────────────────────────────────────────────────
 
   /** Word: `range.scrollIntoView()`. */
-  scrollTo(paraId: string): boolean;
+  scrollTo(paraId: string, options?: ScrollToParaIdOptions): boolean;
 
   // ── Events ───────────────────────────────────────────────────────────────
 

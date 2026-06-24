@@ -66,6 +66,8 @@ Before merging a change in `packages/react/`:
 
 Adapter-only changes are fine for things genuinely scoped to one framework (React-specific hook glue, Vue composition API ergonomics, the demo apps). When in doubt, mirror.
 
+**UI styling / colors are single-source-of-truth.** All editor chrome CSS + color tokens live in `packages/core/src/styles/editor.css`; both adapters only `@import` it (the adapter `src/styles/editor.css` files must stay thin — enforced by `bun run check:adapter-css-thin`). Never hardcode hex/rgba in components — use the `--doc-*` tokens (or shadcn token utilities like `bg-primary`). The shared Tailwind theme lives in `packages/core/tailwind-preset.cjs`, extended by all three `tailwind.config.js`. Dark mode is a token override under `.ep-root.dark` (scaffold in the core stylesheet). The document canvas (painter output) is intentionally NOT themed — it stays Word-faithful.
+
 ### FlowBlock invariant — 3 switches
 
 Adding a `FlowBlock` variant in `packages/core/src/layout-engine/types.ts` requires updating all three; each ends with `assertExhaustiveFlowBlock` so `bun run typecheck` names the missing site:
@@ -89,35 +91,36 @@ Stable dataset attrs on painted DOM (CSS, queries, selection map depend on these
 
 ### Key file map
 
-| Debugging                   | File                                                            |
-| --------------------------- | --------------------------------------------------------------- |
-| Text/paragraph rendering    | `layout-painter/renderParagraph.ts`                             |
-| Image rendering             | `layout-painter/renderImage.ts`                                 |
-| Table rendering             | `layout-painter/renderTable.ts`                                 |
-| Table borders / cut edges   | `layout-painter/renderTableBorders.ts`                          |
-| Table grid geometry (SoT)   | `layout-bridge/tableWidthUtils.ts` (`resolveCellGrid`)          |
-| Table page-break geometry   | `layout-engine/tableRowBreak.ts`                                |
-| Page composition            | `layout-painter/renderPage.ts`                                  |
-| Formatting commands         | `prosemirror/extensions/marks/`, `nodes/`                       |
-| Keyboard shortcuts          | `prosemirror/extensions/features/BaseKeymapExtension.ts`        |
-| Toolbar ↔ selection         | `prosemirror/plugins/selectionTracker.ts`                       |
-| DOCX XML parsers            | `docx/paragraphParser.ts`, `docx/tableParser.ts`                |
-| Document → PM               | `prosemirror/conversion/toProseDoc.ts`                          |
-| Click → PM position         | `components/DocxEditor/hooks/usePagesPointer.ts`                |
-| Selection rects / caret     | `components/DocxEditor/hooks/useSelectionOverlay.ts`            |
-| HF persistent PMs           | `components/DocxEditor/HiddenHeaderFooterPMs.tsx`               |
-| HF caret in painter         | `components/DocxEditor/DocxEditorPagedArea.tsx` (`hfCaretRect`) |
-| HF inline chrome            | `components/InlineHeaderFooterEditor.tsx`                       |
-| Layout pipeline             | `components/DocxEditor/hooks/useLayoutPipeline.ts`              |
-| Scroll API                  | `components/DocxEditor/hooks/usePagedScrollApi.ts`              |
-| Image resize/drag           | `components/DocxEditor/hooks/useImageInteractions.ts`           |
-| Font/HF reflow triggers     | `components/DocxEditor/hooks/useLayoutTriggers.ts`              |
-| Table resize                | `components/DocxEditor/hooks/useTableResizeState.ts`            |
-| Measure-block cache         | `components/DocxEditor/internals/measureBlock.ts`               |
-| Sidebar comment Y positions | `components/DocxEditor/internals/sidebarAnchorPositions.ts`     |
-| PM position → DOM           | `components/DocxEditor/internals/pmAnchors.ts`                  |
-| Main toolbar                | `components/Toolbar.tsx`                                        |
-| Editor CSS                  | `prosemirror/editor.css`                                        |
+| Debugging                    | File                                                            |
+| ---------------------------- | --------------------------------------------------------------- |
+| Text/paragraph rendering     | `layout-painter/renderParagraph.ts`                             |
+| Image rendering              | `layout-painter/renderImage.ts`                                 |
+| Table rendering              | `layout-painter/renderTable.ts`                                 |
+| Table borders / cut edges    | `layout-painter/renderTableBorders.ts`                          |
+| Table grid geometry (SoT)    | `layout-bridge/tableWidthUtils.ts` (`resolveCellGrid`)          |
+| Table page-break geometry    | `layout-engine/tableRowBreak.ts`                                |
+| Page composition             | `layout-painter/renderPage.ts`                                  |
+| Formatting commands          | `prosemirror/extensions/marks/`, `nodes/`                       |
+| Keyboard shortcuts           | `prosemirror/extensions/features/BaseKeymapExtension.ts`        |
+| Toolbar ↔ selection          | `prosemirror/plugins/selectionTracker.ts`                       |
+| DOCX XML parsers             | `docx/paragraphParser.ts`, `docx/tableParser.ts`                |
+| Document → PM                | `prosemirror/conversion/toProseDoc.ts`                          |
+| Click → PM position          | `components/DocxEditor/hooks/usePagesPointer.ts`                |
+| Selection rects / caret      | `components/DocxEditor/hooks/useSelectionOverlay.ts`            |
+| HF persistent PMs            | `components/DocxEditor/HiddenHeaderFooterPMs.tsx`               |
+| HF caret in painter          | `components/DocxEditor/DocxEditorPagedArea.tsx` (`hfCaretRect`) |
+| HF inline chrome             | `components/InlineHeaderFooterEditor.tsx`                       |
+| Layout pipeline              | `components/DocxEditor/hooks/useLayoutPipeline.ts`              |
+| Scroll API                   | `components/DocxEditor/hooks/usePagedScrollApi.ts`              |
+| Image resize/drag            | `components/DocxEditor/hooks/useImageInteractions.ts`           |
+| Font/HF reflow triggers      | `components/DocxEditor/hooks/useLayoutTriggers.ts`              |
+| Table resize                 | `components/DocxEditor/hooks/useTableResizeState.ts`            |
+| Measure-block cache          | `components/DocxEditor/internals/measureBlock.ts`               |
+| Sidebar comment Y positions  | `components/DocxEditor/internals/sidebarAnchorPositions.ts`     |
+| PM position → DOM            | `components/DocxEditor/internals/pmAnchors.ts`                  |
+| Main toolbar                 | `components/Toolbar.tsx`                                        |
+| Document/PM CSS              | `prosemirror/editor.css`                                        |
+| UI chrome CSS + color tokens | `packages/core/src/styles/editor.css` (SINGLE SOURCE OF TRUTH)  |
 
 Shared React/Vue orchestration lives in core (issue #696, Tier 1) — adapters re-export or delegate, so grepping an adapter lands on a thin wrapper:
 
@@ -144,6 +147,41 @@ Shared React/Vue orchestration lives in core (issue #696, Tier 1) — adapters r
 - **No `require()`** — ESM only.
 
 OOXML reference: `reference/quick-ref/wordprocessingml.md`, `themes-colors.md`; schemas in `reference/ecma-376/part1/schemas/`. PDFs in `reference/ecma-376/` are gitignored — run `bun run reference:fetch` once when you need them.
+
+Website docs (docx-editor.dev/docs/1.x) are authored here in `docs/site/content/` (MDX) and synced by the site repo at build time — see `docs/site/README.md` for the authoring contract. Feature-support claims live in `docs/site/data/word-features.ts` (typed matrix), never hand-written in prose. A feature PR that changes user-visible behavior should update both in the same PR.
+
+**Nav gotcha — two meta.json files must agree.** The sidebar/overview is driven by the `"root": true` `docs/site/content/meta.json`, which lists pages with their full path (e.g. `guides/dark-mode`). Each subfolder also has its own `meta.json` (e.g. `guides/meta.json`). Adding a new page (especially a guide) means registering it in BOTH — a page present only in the nested meta is reachable by URL but missing from the sidebar/overview. When you add an MDX file under a subfolder, add its path to the root `meta.json` too.
+
+---
+
+## Security — untrusted DOCX/HTML input
+
+**Treat every value from a DOCX, pasted HTML, or embedded part as attacker-controlled.** A `.docx` is a zip of XML an attacker fully controls — font names, hyperlink targets, shape attrs, image rels, run text. Sanitize at the **parse/trust boundary** (in `packages/core/src/docx/*Parser.ts` / PM `parseDOM`), not at render time, so every downstream consumer gets the clean value.
+
+When you add/touch anything that **parses or renders unknown files** (parsers, `layout-painter/*`, PM `toDOM`/`parseDOM`, clipboard, print), audit these sink classes before merging:
+
+- **No HTML-from-strings.** Never build DOM from file-derived values via `innerHTML` / `outerHTML` / `insertAdjacentHTML` / `document.write`. Build with `document.createElement(NS)` + `setAttribute` / `textContent`.
+- **URLs go through `sanitizeHref`** (`packages/core/src/utils/sanitizeHref.ts`) — allowlists `http(s)/mailto/tel/ftp`, drops `javascript:`/`data:`/`vbscript:`/`file:`, strips embedded tab/LF/CR like WHATWG. Apply to every `href`, image `hlinkHref`, and `window.open(...)` arg.
+- **Escape strings interpolated into CSS** — `@font-face` family names and any inline `style` built from file data. See `cssStringEscape` in `fontLoader.ts` (escapes `" \ < >` and CSS newlines `\n \r \f`). Build print/popup `<style>` via `textContent`, never `document.write`.
+- **Residual CSS injection** — colors/transform/font-family still flow into inline `style` strings (set via `setAttribute`, so not XSS, but enables overlay/clickjacking and `url()` beacons). Validate/clamp where practical.
+
+Malicious-file parsing also has non-injection classes — guard these when opening/saving unknown files:
+
+- **XML safety** — the XML parser must not resolve DTDs/external entities (XXE → file/SSRF read) or expand nested entities (billion-laughs DoS).
+- **Zip safety** — enforce a decompression-ratio/size cap (zip bomb) and reject part/rel/media paths containing `..` or a leading `/` before resolving them (path traversal).
+- **No zero-click external fetch** — never auto-load a remote target from a file: external-mode image/font/link relationships (`TargetMode="External"`), remote `src`, CSS `url()`/`@import`. A network request on open is SSRF / IP-leak / tracking-beacon. Fetch only same-origin/embedded parts; gate remote loads behind explicit user action.
+- **Resource limits** — cap recursion depth (nested tables/shapes/SDT/groups/textboxes) and element counts (rows/cells/runs/pages); never feed a file-supplied number straight into allocation, `.repeat()`, or a loop bound. Avoid catastrophic-backtracking (ReDoS) regex on file-derived strings.
+- **XML injection on save** — escape every attacker-derived string written back into XML on serialize/round-trip (`escapeXml`); never template a raw value into output markup.
+- **Prototype pollution** — guard `JSON.parse`-of-file-data merges and any XML-attribute-name → object-key assignment against `__proto__`/`constructor`/`prototype`.
+- **Field codes / OLE / embedded objects** — never execute or auto-resolve Word field instructions (DDE, `INCLUDE*`, etc.) or embedded OLE/macro content; render inert.
+
+Quick audit grep when reviewing file-handling diffs:
+
+```bash
+grep -rnE "innerHTML|outerHTML|insertAdjacentHTML|document\.write|window\.open\(|\.href\s*=|font-family:.*\$\{" packages --include="*.ts" --include="*.tsx" --include="*.vue" | grep -viE "test|\.spec\."
+```
+
+Run that grep on any PR that parses or renders file data before merging. When you touch one sink, **check sibling sinks** so the same class isn't left open elsewhere — e.g. the exported `openPrintWindow` util (`core/utils/print.ts`, `PrintPreview.tsx`/`.vue`) still builds its popup via `document.write` with an unescaped `title`/`content`. Treat it as a **known sink to harden**, not a safe reference.
 
 ---
 
@@ -195,14 +233,14 @@ Adding adapter prop/ref method:
 
 Every code PR → `bun changeset` → commit `.changeset/*.md`. Skip only for test/docs/CI-only PRs.
 
-- Use full npm name in frontmatter (`@eigenpal/docx-editor-react`). Always run `bun changeset`, don't hand-write. Wrong name crashes post-merge Release workflow.
+- A hand-written `.changeset/*.md` is fine as long as it is correct — `bun changeset` is convenient but optional, don't make a human run a TTY prompt just to land a changeset. The frontmatter package name MUST exactly match one of the published packages below and the bump MUST be `patch`/`minor`/`major`; a wrong/typo'd name crashes the post-merge Release workflow. Copy the exact name from the Packages list (or an existing `.changeset/*.md`) rather than typing it from memory.
 - All published packages in fixed group — declare one bump, others follow.
 - Default bump: `patch`. `minor` for additive public API. `major` for breaks.
 - Summary lands verbatim in CHANGELOG; write for the consumer. Keep it concise (one or two lines), lead with the user-visible change (what changed, not how), and put `Fixes #N` at the end if relevant. No emojis or marketing.
 
 Release: merge the bot's `chore: release` PR. Publish runs via OIDC, tags, GH release. ~3 min.
 
-Branches: `main` = 1.x line. `0.x` = pre-rename maintenance, patch/minor only.
+Branches: `main` = 1.x line. `0.x` = pre-rename maintenance, patch/minor only; it does NOT receive security fixes (see `SECURITY.md` — only 1.x is security-supported).
 
 Packages: `@eigenpal/docx-editor-{react,core,agents,i18n,vue}`, `@eigenpal/nuxt-docx-editor`. All published.
 
