@@ -26,7 +26,14 @@ import type {
 } from '../types/document';
 import type { StyleMap } from './styleParser';
 import type { NumberingMap } from './numberingParser';
-import { findChild, findDeep, getChildElements, getLocalName, type XmlElement } from './xmlParser';
+import {
+  findAllDeep,
+  findChild,
+  findDeep,
+  getChildElements,
+  getLocalName,
+  type XmlElement,
+} from './xmlParser';
 import { parseSdtProperties } from './sdtProperties';
 import { parseParagraph } from './paragraphParser';
 import { parseTable } from './tableParser';
@@ -36,6 +43,7 @@ import {
   getTextBoxContentElement,
   parseTextBoxContent,
 } from './textBoxParser';
+import { parseShape } from './shapeParser';
 
 // ============================================================================
 // BULLET MARKER CONVERSION
@@ -154,56 +162,12 @@ function enrichParagraphTextBoxes(
   rels: RelationshipMap | null,
   media: Map<string, MediaFile> | null
 ): void {
-  // Early exit: skip paragraphs with no runs (most paragraphs have no text boxes)
-  if (paragraph.content.length === 0) return;
-
   const xmlChildren = getChildElements(paraXml);
 
   // Track which run we're on (to match XML runs with parsed runs)
   let runIndex = 0;
 
-  // Walk into <mc:AlternateContent> wrappers too: Word stores anchored
-  // wps:wsp text boxes inside Choice Requires="wps" (Fallback is VML).
-  function processDrawing(drawingEl: XmlElement): void {
-    if (!isTextBoxDrawing(drawingEl)) return;
-
-    const textBox = parseTextBox(drawingEl);
-    if (!textBox) return;
-
-    // Navigate to wps:wsp to get the txbxContent element
-    const wsp = findDeep(drawingEl, 'wps', 'wsp');
-    if (wsp) {
-      const txbxContentEl = getTextBoxContentElement(wsp);
-      if (txbxContentEl) {
-        textBox.content = parseTextBoxContent(
-          txbxContentEl,
-          parseParagraph,
-          null, // table parser not needed for most text boxes
-          styles,
-          theme,
-          numbering,
-          rels ?? undefined,
-          media ?? undefined
-        );
-      }
-    }
-
-    // Convert to Shape with textBody and inject as ShapeContent
-    const shape: Shape = {
-      type: 'shape',
-      shapeType: 'rect',
-      size: textBox.size,
-      position: textBox.position,
-      wrap: textBox.wrap,
-      fill: textBox.fill,
-      outline: textBox.outline,
-      textBody: {
-        content: textBox.content,
-        margins: textBox.margins,
-      },
-    };
-    if (textBox.id) shape.id = textBox.id;
-
+  function injectShape(shape: Shape): void {
     const shapeContent: ShapeContent = { type: 'shape', shape };
 
     // Clamp to the last parsed run: runIndex can outrun paragraph.content
@@ -220,11 +184,93 @@ function enrichParagraphTextBoxes(
         }
       }
     }
+
     if (targetIdx >= 0) {
       const parsedContent = paragraph.content[targetIdx];
       if (parsedContent.type === 'run') {
         parsedContent.content.push(shapeContent);
       }
+    } else {
+      paragraph.content.push({ type: 'run', content: [shapeContent] });
+    }
+  }
+
+  // Walk into <mc:AlternateContent> wrappers too: Word stores anchored
+  // wps:wsp text boxes inside Choice Requires="wps" (Fallback is VML).
+  function processDrawing(drawingEl: XmlElement): void {
+    const handledShapes = new Set<XmlElement>();
+
+    if (isTextBoxDrawing(drawingEl)) {
+      const textBox = parseTextBox(drawingEl);
+      if (textBox) {
+        // Navigate to wps:wsp to get the txbxContent element
+        const wsp = findDeep(drawingEl, 'wps', 'wsp');
+        if (wsp) {
+          handledShapes.add(wsp);
+          const txbxContentEl = getTextBoxContentElement(wsp);
+          if (txbxContentEl) {
+            textBox.content = parseTextBoxContent(
+              txbxContentEl,
+              parseParagraph,
+              null, // table parser not needed for most text boxes
+              styles,
+              theme,
+              numbering,
+              rels ?? undefined,
+              media ?? undefined
+            );
+          }
+        }
+
+        // Convert to Shape with textBody and inject as ShapeContent
+        const shape: Shape = {
+          type: 'shape',
+          shapeType: 'rect',
+          size: textBox.size,
+          position: textBox.position,
+          wrap: textBox.wrap,
+          fill: textBox.fill,
+          outline: textBox.outline,
+          textBody: {
+            content: textBox.content,
+            margins: textBox.margins,
+          },
+        };
+        if (textBox.id) shape.id = textBox.id;
+
+        injectShape(shape);
+      }
+    }
+
+    // Some converted HWP/government templates store section labels as text
+    // boxes inside grouped drawings (<wpg:wgp><wps:wsp>...). These are not
+    // direct graphicData children, so parseTextBox(drawingEl) does not see
+    // them. Lift each nested wps:wsp text box into the same ShapeContent
+    // pipeline instead of dropping it.
+    for (const wsp of findAllDeep(drawingEl, 'wps', 'wsp')) {
+      if (handledShapes.has(wsp)) continue;
+
+      const txbxContentEl = getTextBoxContentElement(wsp);
+      if (!txbxContentEl) continue;
+
+      const shape = parseShape(wsp);
+      const content = parseTextBoxContent(
+        txbxContentEl,
+        parseParagraph,
+        null,
+        styles,
+        theme,
+        numbering,
+        rels ?? undefined,
+        media ?? undefined
+      );
+
+      shape.textBody = {
+        ...(shape.textBody ?? {}),
+        content,
+      };
+
+      injectShape(shape);
     }
   }
 

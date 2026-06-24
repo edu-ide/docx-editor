@@ -113,12 +113,21 @@ interface RenderLineOptions {
   lineRightEdgePx?: number;
 }
 
+type RenderLineAlignment = 'left' | 'center' | 'right' | 'justify' | 'start' | 'end' | undefined;
+
+function normalizeLineAlignment(align: RenderLineAlignment): 'left' | 'center' | 'right' | 'justify' | undefined {
+  if (align === 'start') return 'left';
+  if (align === 'end') return 'right';
+  return align;
+}
+
 /**
  * Map a paragraph/image alignment to the `justify-content` value used when a
  * line is laid out as a flex row. `left`, `justify`, and unset all pack left.
  */
 function alignToJustifyContent(align: string | undefined): string {
-  return align === 'center' ? 'center' : align === 'right' ? 'flex-end' : 'flex-start';
+  const normalized = normalizeLineAlignment(align as RenderLineAlignment);
+  return normalized === 'center' ? 'center' : normalized === 'right' ? 'flex-end' : 'flex-start';
 }
 
 /**
@@ -274,7 +283,7 @@ function createTextMeasurer(
 export function renderLine(
   block: ParagraphBlock,
   line: MeasuredLine,
-  alignment: 'left' | 'center' | 'right' | 'justify' | undefined,
+  alignment: RenderLineAlignment,
   doc: Document,
   options?: RenderLineOptions
 ): HTMLElement {
@@ -284,6 +293,20 @@ export function renderLine(
   // Apply line height
   lineEl.style.height = `${line.lineHeight}px`;
   lineEl.style.lineHeight = `${line.lineHeight}px`;
+  const effectiveAlignment = normalizeLineAlignment(alignment);
+  if (
+    (effectiveAlignment === 'center' || effectiveAlignment === 'right') &&
+    options?.availableWidth &&
+    options.availableWidth > 0
+  ) {
+    // Keep normal paragraph lines at the full paragraph width. The paragraph
+    // renderer applies left/right indentation as padding after this call; if we
+    // set the line to the already de-indented available width here, right/end
+    // aligned text boxes get their right indent subtracted twice.
+    lineEl.style.width = '100%';
+    lineEl.style.boxSizing = 'border-box';
+    lineEl.style.textAlign = effectiveAlignment;
+  }
 
   // Get runs for this line
   const runsForLine = sliceRunsForLine(block, line);
@@ -306,7 +329,7 @@ export function renderLine(
   if (runsForLine.length === 1 && isImageRun(runsForLine[0])) {
     const imageRun = runsForLine[0] as ImageRun;
     const imageAlign = imageRun.position?.horizontal?.align;
-    const effectiveAlign = imageAlign ?? alignment;
+    const effectiveAlign = imageAlign ?? effectiveAlignment;
     lineEl.style.display = 'flex';
     lineEl.style.alignItems = 'center';
     lineEl.style.justifyContent = alignToJustifyContent(effectiveAlign);
@@ -318,7 +341,7 @@ export function renderLine(
     // height was measured to match (imageH + text descent).
     lineEl.style.display = 'flex';
     lineEl.style.alignItems = 'baseline';
-    lineEl.style.justifyContent = alignToJustifyContent(alignment);
+    lineEl.style.justifyContent = alignToJustifyContent(effectiveAlignment);
     // Flex blockifies the run spans, so they'd otherwise inherit the line's
     // image-inflated line-height as their own box height — fattening each
     // text run to the full band and breaking baseline alignment. Reset to the
@@ -337,7 +360,7 @@ export function renderLine(
   }
 
   // Calculate justify spacing if needed
-  const isJustify = alignment === 'justify';
+  const isJustify = effectiveAlignment === 'justify';
   let shouldJustify = false;
 
   if (isJustify && options) {

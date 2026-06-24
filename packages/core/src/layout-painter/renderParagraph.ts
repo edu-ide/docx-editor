@@ -99,6 +99,16 @@ function paragraphBaseIsRtl(block: ParagraphBlock): boolean {
   return true;
 }
 
+type RenderAlignment = 'left' | 'center' | 'right' | 'justify' | undefined;
+
+function normalizeParagraphAlignment(alignment: unknown, isRtl: boolean): RenderAlignment {
+  if (alignment === 'center') return 'center';
+  if (alignment === 'justify' || alignment === 'both' || alignment === 'distribute') return 'justify';
+  if (alignment === 'right' || alignment === 'end') return isRtl ? 'left' : 'right';
+  if (alignment === 'left' || alignment === 'start') return isRtl ? 'right' : 'left';
+  return undefined;
+}
+
 /**
  * Render a paragraph fragment
  *
@@ -167,7 +177,7 @@ export function renderParagraphFragment(
 
   // Get the lines for this fragment
   const lines = measure.lines.slice(fragment.fromLine, fragment.toLine);
-  const alignment = block.attrs?.alignment;
+  const rawAlignment = block.attrs?.alignment;
 
   // Apply paragraph-level styles
   if (block.attrs?.styleId) {
@@ -186,6 +196,7 @@ export function renderParagraphFragment(
   // Arabic reads backwards. Native `dir="auto"` can't help here — the per-run
   // isolates look neutral to it — so we detect the base ourselves. (#719)
   const isRtl = Boolean(block.attrs?.bidi) || paragraphBaseIsRtl(block);
+  const alignment = normalizeParagraphAlignment(rawAlignment, isRtl);
   if (isRtl) {
     fragmentEl.dir = 'rtl';
   }

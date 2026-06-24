@@ -57,18 +57,23 @@ function convertParagraphAttrs(
 ): ParagraphAttrs {
   const attrs: ParagraphAttrs = {};
 
-  // Alignment - map DOCX values to CSS-compatible values
-  // DOCX uses 'both' for justify, 'distribute' for distributed justify
+  // Alignment - map DOCX values to CSS-compatible values.
+  // DOCX uses 'both' for justify and 'start'/'end' for logical alignment.
   if (pmAttrs.alignment) {
-    const align = pmAttrs.alignment;
-    if (align === 'both' || align === 'distribute') {
+    const align = String(pmAttrs.alignment);
+    const isRtl = Boolean(pmAttrs.bidi);
+    if (align === 'both' || align === 'distribute' || align === 'justify') {
       attrs.alignment = 'justify';
-    } else if (align === 'left') {
-      attrs.alignment = 'left';
     } else if (align === 'center') {
       attrs.alignment = 'center';
     } else if (align === 'right') {
       attrs.alignment = 'right';
+    } else if (align === 'end') {
+      attrs.alignment = isRtl ? 'left' : 'right';
+    } else if (align === 'left') {
+      attrs.alignment = 'left';
+    } else if (align === 'start') {
+      attrs.alignment = isRtl ? 'right' : 'left';
     }
     // Other DOCX alignments (mediumKashida, highKashida, lowKashida, thaiDistribute, justify)
     // default to no alignment set (inherits from style or defaults to left)
