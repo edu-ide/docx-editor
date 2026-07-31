@@ -13,6 +13,7 @@ export {
   PENDING_COMMENT_ID,
   createCommentIdAllocator,
   type CommentIdAllocator,
+  type CommentIdAllocatorOptions,
 } from '@eigenpal/docx-editor-core/prosemirror/commentIdAllocator';
 export { createComment } from '@eigenpal/docx-editor-core/prosemirror/commentOps';
 

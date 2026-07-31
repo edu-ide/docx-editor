@@ -29,17 +29,46 @@ export interface CommentIdAllocator {
   seedAbove(maxId: number): void;
 }
 
+export interface CommentIdAllocatorOptions {
+  /**
+   * First ID to allocate inside a sharded numeric space. Defaults to 1, which
+   * preserves the classic 1,2,3... allocator.
+   */
+  shardOffset?: number;
+  /**
+   * Distance between IDs allocated by this instance. Defaults to 1. Realtime
+   * collaboration adapters can give each peer a different offset with the same
+   * stride so simultaneous local allocations do not produce the same number.
+   */
+  shardStride?: number;
+}
+
+function positiveInteger(value: number | undefined, fallback: number): number {
+  if (value == null || !Number.isFinite(value)) return fallback;
+  return Math.max(1, Math.floor(value));
+}
+
 /**
  * Create an instance-scoped monotonic comment/revision ID allocator. IDs are
  * never reused (deleting a comment does not free its ID), and the counter is
  * private to this allocator — multiple editors get independent ID spaces.
  */
-export function createCommentIdAllocator(): CommentIdAllocator {
-  let nextId = 1;
+export function createCommentIdAllocator(
+  options: CommentIdAllocatorOptions = {}
+): CommentIdAllocator {
+  const stride = positiveInteger(options.shardStride, 1);
+  const offset = positiveInteger(options.shardOffset, 1);
+  let nextId = offset;
   return {
-    next: () => nextId++,
+    next: () => {
+      const id = nextId;
+      nextId += stride;
+      return id;
+    },
     seedAbove(maxId: number) {
-      if (maxId >= nextId) nextId = maxId + 1;
+      if (maxId >= nextId) {
+        nextId += (Math.floor((maxId - nextId) / stride) + 1) * stride;
+      }
     },
   };
 }

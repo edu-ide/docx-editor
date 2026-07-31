@@ -54,6 +54,19 @@ describe('createCommentIdAllocator', () => {
     expect(b.next()).toBe(1);
   });
 
+  test('supports sharded ID spaces for realtime collaboration peers', () => {
+    const ada = createCommentIdAllocator({ shardOffset: 17, shardStride: 1000 });
+    const grace = createCommentIdAllocator({ shardOffset: 18, shardStride: 1000 });
+
+    expect(ada.next()).toBe(17);
+    expect(grace.next()).toBe(18);
+    expect(ada.next()).toBe(1017);
+    expect(grace.next()).toBe(1018);
+
+    ada.seedAbove(2500);
+    expect(ada.next()).toBe(3017);
+  });
+
   test('seedAbove raises the counter above existing IDs, never lowers', () => {
     const a = createCommentIdAllocator();
     a.seedAbove(10);

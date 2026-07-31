@@ -277,6 +277,13 @@ export interface DocxEditorProps {
   comments?: Comment[];
   /** Fires whenever the comments array changes (controlled mode). */
   onCommentsChange?: (comments: Comment[]) => void;
+  /**
+   * Optional ID allocation policy for comments and tracked changes. Realtime
+   * collaboration adapters can pass a sharded allocator config so multiple
+   * peers do not create the same numeric Word comment id while editing offline.
+   * Omit for the default 1,2,3... single-editor allocator.
+   */
+  commentIdAllocatorOptions?: CommentIdAllocatorOptions;
   /** Controlled comments-sidebar visibility; source of truth when set. Pair with `onCommentsSidebarOpenChange`; omit for the default self-managed behavior. */
   commentsSidebarOpen?: boolean;
   /** Fires with the next open state whenever the editor wants to show or hide the comments sidebar. Fires in both controlled and uncontrolled modes. */
@@ -585,6 +592,8 @@ import {
   EMPTY_ANCHOR_POSITIONS,
   createComment,
   createCommentIdAllocator,
+  type CommentIdAllocator,
+  type CommentIdAllocatorOptions,
 } from './DocxEditor/commentFactories';
 
 /**
@@ -637,6 +646,7 @@ export const DocxEditor = forwardRef<DocxEditorRef, DocxEditorProps>(function Do
     onCommentReply,
     comments: commentsProp,
     onCommentsChange,
+    commentIdAllocatorOptions,
     commentsSidebarOpen,
     onCommentsSidebarOpenChange,
     externalPlugins,
@@ -883,7 +893,11 @@ export const DocxEditor = forwardRef<DocxEditorRef, DocxEditorProps>(function Do
   // One comment/revision ID allocator per editor instance (monotonic, no reuse).
   // Seeded above the loaded doc's max ID on load; shared by every comment/
   // tracked-change allocation in this component and its hooks.
-  const commentIdAllocatorRef = useRef(createCommentIdAllocator());
+  const commentIdAllocatorRef = useRef<CommentIdAllocator | null>(null);
+  if (!commentIdAllocatorRef.current) {
+    commentIdAllocatorRef.current = createCommentIdAllocator(commentIdAllocatorOptions);
+  }
+  const commentIdAllocator = commentIdAllocatorRef.current;
 
   const { resetForNewDocument } = useResetEditorState({
     commentsLoadedRef,
@@ -917,7 +931,7 @@ export const DocxEditor = forwardRef<DocxEditorRef, DocxEditorProps>(function Do
     onError,
     resetForNewDocument,
     commentsLoadedRef,
-    commentIdAllocator: commentIdAllocatorRef.current,
+    commentIdAllocator,
     setDocumentFonts,
   });
 
@@ -1280,7 +1294,7 @@ export const DocxEditor = forwardRef<DocxEditorRef, DocxEditorProps>(function Do
     contentChangeSubscribersRef,
     selectionChangeSubscribersRef,
     getCachedStyleResolver,
-    commentIdAllocator: commentIdAllocatorRef.current,
+    commentIdAllocator,
   });
 
   const initialSectionProperties = useMemo(
@@ -1334,7 +1348,7 @@ export const DocxEditor = forwardRef<DocxEditorRef, DocxEditorProps>(function Do
   const commentCallbacksRef = useRef<CommentCallbacks>({});
   commentCallbacksRef.current = {
     onCommentReply: (id, text) => {
-      const reply = createComment(commentIdAllocatorRef.current, text, author, id);
+      const reply = createComment(commentIdAllocator, text, author, id);
       const parent = comments.find((c) => c.id === id);
       setComments((prev) => [...prev, reply]);
       if (parent) onCommentReply?.(reply, parent);
@@ -1369,7 +1383,7 @@ export const DocxEditor = forwardRef<DocxEditorRef, DocxEditorProps>(function Do
       if (target) onCommentDelete?.(target);
     },
     onAddComment: (addText) => {
-      const comment = createComment(commentIdAllocatorRef.current, addText, author);
+      const comment = createComment(commentIdAllocator, addText, author);
       const view = pagedEditorRef.current?.getView();
       if (view && commentSelectionRange) {
         const { from, to } = commentSelectionRange;
@@ -1469,7 +1483,7 @@ export const DocxEditor = forwardRef<DocxEditorRef, DocxEditorProps>(function Do
     onTrackedChangeReply: (revisionId, text) => {
       setComments((prev) => [
         ...prev,
-        createComment(commentIdAllocatorRef.current, text, author, revisionId),
+        createComment(commentIdAllocator, text, author, revisionId),
       ]);
     },
   };
