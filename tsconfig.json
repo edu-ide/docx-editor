@@ -25,7 +25,12 @@
       "@eigenpal/docx-editor-core/headless": ["./packages/core/src/headless.ts"],
       "@eigenpal/docx-editor-core/core-plugins": ["./packages/core/src/core-plugins/index.ts"],
       "@eigenpal/docx-editor-core/mcp": ["./packages/core/src/mcp/index.ts"],
-      "@eigenpal/docx-editor-core/*": ["./packages/core/src/*"]
+      "@eigenpal/docx-editor-core/*": ["./packages/core/src/*"],
+      "@eigenpal/docx-editor-agents/react": ["./packages/agents/src/react.ts"],
+      "@eigenpal/docx-editor-agents/bridge": ["./packages/agents/src/bridge.ts"],
+      "@eigenpal/docx-editor-agents/*": ["./packages/agents/src/*"],
+      "@eigenpal/docx-editor-i18n": ["./packages/i18n/src/index.ts"],
+      "@eigenpal/docx-editor-i18n/*": ["./packages/i18n/src/*"]
     }
   },
   "include": [
