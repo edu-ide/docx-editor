@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import * as Y from 'yjs';
 import { WebrtcProvider } from 'y-webrtc';
 import { ySyncPlugin, yCursorPlugin, yUndoPlugin } from 'y-prosemirror';
 import type { Plugin } from 'prosemirror-state';
 import type { Comment } from '@eigenpal/docx-editor-core/types/content';
+import type { CommentIdAllocatorOptions } from '@eigenpal/docx-editor-core/prosemirror/commentIdAllocator';
+import { applyCommentSnapshotToMap, commentsFromMap } from './sharedComments';
 
 export interface CollaborativeUser {
   clientId: number;
@@ -13,45 +15,95 @@ export interface CollaborativeUser {
 }
 
 export interface CollaborationState {
+  ready: boolean;
   plugins: Plugin[];
   users: CollaborativeUser[];
   roomName: string;
   status: 'connecting' | 'connected' | 'disconnected';
-  /** Comments mirrored from a Y.Array on the same Y.Doc — pass to DocxEditor's `comments` prop. */
+  /** Comments mirrored from a Y.Map on the same Y.Doc — pass to DocxEditor's `comments` prop. */
   comments: Comment[];
-  /** Pass to DocxEditor's `onCommentsChange`. Replaces the Y.Array contents in a single transact. */
+  /** Pass to DocxEditor's `onCommentsChange`. Merges comment changes by stable id. */
   setComments: (next: Comment[]) => void;
+  /** Sharded comment/revision id allocation for this peer. */
+  commentIdAllocatorOptions: CommentIdAllocatorOptions;
 }
 
-const SIGNALING_SERVERS = ['wss://signaling.yjs.dev', 'wss://y-webrtc-signaling-eu.herokuapp.com'];
+const DEFAULT_SIGNALING_SERVERS = ['wss://y-webrtc-eu.fly.dev'];
+const COMMENT_ID_SHARD_STRIDE = 1_000_000;
+
+function commentIdAllocatorOptionsForClient(clientId: number): CommentIdAllocatorOptions {
+  return {
+    shardOffset: (Math.abs(Math.floor(clientId)) % COMMENT_ID_SHARD_STRIDE) + 1,
+    shardStride: COMMENT_ID_SHARD_STRIDE,
+  };
+}
+
+function getSignalingServers(): string[] {
+  const configured = (
+    import.meta as unknown as { env?: { VITE_Y_WEBRTC_SIGNALING?: string } }
+  ).env?.VITE_Y_WEBRTC_SIGNALING;
+  const servers = configured
+    ?.split(',')
+    .map((server) => server.trim())
+    .filter(Boolean);
+  return servers?.length ? servers : DEFAULT_SIGNALING_SERVERS;
+}
+
+interface CollaborationRuntime {
+  roomName: string;
+  ydoc: Y.Doc;
+  provider: WebrtcProvider;
+  plugins: Plugin[];
+  yComments: Y.Map<Comment>;
+  commentIdAllocatorOptions: CommentIdAllocatorOptions;
+}
 
 export function useCollaboration(
   roomName: string,
   localUser: { name: string; color: string }
 ): CollaborationState {
-  // Y.Doc, provider, prosemirror plugins, and the comments Y.Array are created
-  // once per room. localUser changes (e.g. renaming) update awareness without
-  // rebuilding the doc.
-  const { ydoc, provider, plugins, yComments } = useMemo(() => {
-    const ydoc = new Y.Doc();
-    const provider = new WebrtcProvider(roomName, ydoc, { signaling: SIGNALING_SERVERS });
-    const fragment = ydoc.getXmlFragment('prosemirror');
-    const plugins = [ySyncPlugin(fragment), yCursorPlugin(provider.awareness), yUndoPlugin()];
-    const yComments = ydoc.getArray<Comment>('comments');
-    return { ydoc, provider, plugins, yComments };
-  }, [roomName]);
-
+  const [runtime, setRuntime] = useState<CollaborationRuntime | null>(null);
   const [users, setUsers] = useState<CollaborativeUser[]>([]);
   const [status, setStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting');
-  const [comments, setCommentsState] = useState<Comment[]>(() => yComments.toArray());
+  const [comments, setCommentsState] = useState<Comment[]>([]);
+  const commentsRef = useRef<Comment[]>([]);
+  const activeRuntime = runtime?.roomName === roomName ? runtime : null;
+
+  // Y.Doc, provider, prosemirror plugins, and the comments Y.Map are created
+  // in an effect: the provider joins the room as a side effect, and aborted
+  // renders must not leak a connection.
+  useEffect(() => {
+    setUsers([]);
+    commentsRef.current = [];
+    setCommentsState([]);
+    setStatus('connecting');
+
+    const ydoc = new Y.Doc();
+    const provider = new WebrtcProvider(roomName, ydoc, { signaling: getSignalingServers() });
+    const fragment = ydoc.getXmlFragment('prosemirror');
+    const plugins = [ySyncPlugin(fragment), yCursorPlugin(provider.awareness), yUndoPlugin()];
+    const yComments = ydoc.getMap<Comment>('comments');
+    const commentIdAllocatorOptions = commentIdAllocatorOptionsForClient(provider.awareness.clientID);
+
+    setRuntime({ roomName, ydoc, provider, plugins, yComments, commentIdAllocatorOptions });
+
+    return () => {
+      provider.destroy();
+      ydoc.destroy();
+    };
+  }, [roomName]);
 
   // Publish local user identity into awareness so peers can render avatars + cursors.
   useEffect(() => {
-    provider.awareness.setLocalStateField('user', localUser);
-  }, [provider, localUser.name, localUser.color]);
+    if (!activeRuntime) return;
+    activeRuntime.provider.awareness.setLocalStateField('user', localUser);
+  }, [activeRuntime, localUser.name, localUser.color]);
 
   // Subscribe to awareness + connection changes.
   useEffect(() => {
+    if (!activeRuntime) return;
+
+    const { provider } = activeRuntime;
     const refreshUsers = () => {
       const localId = provider.awareness.clientID;
       const all: CollaborativeUser[] = [];
@@ -73,43 +125,51 @@ export function useCollaboration(
     refreshUsers();
     provider.awareness.on('change', refreshUsers);
     provider.on('status', handleStatus);
+    handleStatus({ connected: provider.connected });
 
     return () => {
       provider.awareness.off('change', refreshUsers);
       provider.off('status', handleStatus);
     };
-  }, [provider]);
+  }, [activeRuntime]);
 
-  // Mirror the Y.Array<Comment> into React state. Replace-all on remote change
-  // is fine for a demo; for production you'd use a Y.Map keyed by comment id
-  // for finer-grained merge semantics.
+  // Mirror the Y.Map<Comment> into React state. Each comment is keyed by its
+  // stable Word id, so concurrent peers can add or edit different threads
+  // without replacing the whole collection.
   useEffect(() => {
-    const sync = () => setCommentsState(yComments.toArray());
+    if (!activeRuntime) return;
+    const { yComments } = activeRuntime;
+    const sync = () => {
+      const next = commentsFromMap(yComments);
+      commentsRef.current = next;
+      setCommentsState(next);
+    };
     sync();
-    yComments.observeDeep(sync);
-    return () => yComments.unobserveDeep(sync);
-  }, [yComments]);
+    yComments.observe(sync);
+    return () => yComments.unobserve(sync);
+  }, [activeRuntime]);
 
-  // Push the editor's new comments array back into Yjs. Naive replace-all:
-  // delete everything, push the new array. Adequate for a demo on a small
-  // collection where the controlled API hands us the full array each time.
+  // Push the editor's new comments array back into Yjs. We diff against the
+  // local snapshot this client has actually seen; comments concurrently added
+  // by another peer are not deleted merely because this callback received a
+  // stale array.
   const setComments = useCallback(
     (next: Comment[]) => {
-      ydoc.transact(() => {
-        if (yComments.length > 0) yComments.delete(0, yComments.length);
-        if (next.length > 0) yComments.push(next);
-      });
+      if (!activeRuntime) return;
+      const { ydoc, yComments } = activeRuntime;
+      applyCommentSnapshotToMap(ydoc, yComments, commentsRef.current, next);
     },
-    [ydoc, yComments]
+    [activeRuntime]
   );
 
-  // Tear down on unmount / room change.
-  useEffect(() => {
-    return () => {
-      provider.destroy();
-      ydoc.destroy();
-    };
-  }, [provider, ydoc]);
-
-  return { plugins, users, roomName, status, comments, setComments };
+  return {
+    ready: Boolean(activeRuntime),
+    plugins: activeRuntime?.plugins ?? [],
+    users: activeRuntime ? users : [],
+    roomName,
+    status: activeRuntime ? status : 'connecting',
+    comments: activeRuntime ? comments : [],
+    setComments,
+    commentIdAllocatorOptions: activeRuntime?.commentIdAllocatorOptions ?? {},
+  };
 }

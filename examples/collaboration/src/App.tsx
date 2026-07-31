@@ -38,6 +38,14 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#334155',
     whiteSpace: 'nowrap',
   },
+  loadingMain: {
+    flex: 1,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    color: '#475569',
+    fontSize: 14,
+  },
 };
 
 const statusDotStyle = (color: string): React.CSSProperties => ({
@@ -76,8 +84,13 @@ export function App() {
   const [room] = useState(getOrCreateRoomFromUrl);
   const [shareCopied, setShareCopied] = useState(false);
 
-  const { plugins, users, status, comments, setComments } = useCollaboration(room, user);
+  const { ready, plugins, users, status, comments, setComments, commentIdAllocatorOptions } =
+    useCollaboration(room, user);
   const { zoom: autoZoom, isMobile } = useResponsiveLayout();
+  const remoteUsers = useMemo(
+    () => users.filter((collaborator) => !collaborator.isLocal),
+    [users]
+  );
 
   // Empty document acts purely as a schema seed. ySyncPlugin populates the real
   // content from the Y.Doc, which is why we set externalContent on the editor.
@@ -98,7 +111,7 @@ export function App() {
   const renderTitleBarRight = useCallback(
     () => (
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <AvatarStack users={users} />
+        <AvatarStack users={remoteUsers} />
         <span style={styles.status} title={`Room: ${room}`}>
           <span
             style={statusDotStyle(
@@ -116,8 +129,16 @@ export function App() {
         </button>
       </div>
     ),
-    [users, room, status, handleCopyShareLink, shareCopied]
+    [remoteUsers, room, status, handleCopyShareLink, shareCopied]
   );
+
+  if (!ready) {
+    return (
+      <div style={styles.container}>
+        <main style={styles.loadingMain}>Joining room...</main>
+      </div>
+    );
+  }
 
   return (
     <div style={styles.container}>
@@ -128,6 +149,7 @@ export function App() {
           externalPlugins={plugins}
           comments={comments}
           onCommentsChange={setComments}
+          commentIdAllocatorOptions={commentIdAllocatorOptions}
           author={user.name}
           showToolbar
           showRuler={!isMobile}
