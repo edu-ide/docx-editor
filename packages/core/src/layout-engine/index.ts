@@ -45,6 +45,7 @@ import { buildTableRowBreakInfo, prepareUnsplitRow, snapRowBreak } from './table
 import { MIN_WRAP_SEGMENT_WIDTH } from '../layout-bridge/measuring/floatingZones';
 import { getParagraphFragmentPmRange } from './paragraphFragmentRange';
 import { balanceTerminalContinuousTextColumns } from './columnBalancing';
+import { findBreakSheetJoins, placeJoinedMark } from './section-mark-break';
 import { getSpacingAfter, getSpacingBefore } from './paragraphSpacing';
 
 // Default page size (US Letter in pixels at 96 DPI)
@@ -246,6 +247,8 @@ export function layoutDocument(
   // Pre-compute keepNext chains for pagination decisions
   const keepNextChains = computeKeepNextChains(blocks);
   const midChainIndices = getMidChainIndices(keepNextChains);
+  // A page break + empty section mark before a sheet-opening section: one sheet, not two.
+  const joins = findBreakSheetJoins(blocks, breakIndices, sectionBreakTypes, sectionConfigs);
 
   // Process each block, tracking section break index with a counter (O(1) per break)
   let sectionIdx = 0;
@@ -254,13 +257,13 @@ export function layoutDocument(
     const measure = measures[i];
 
     // Handle pageBreakBefore on paragraphs
-    if (hasPageBreakBefore(block)) {
+    if (hasPageBreakBefore(block) && !joins.breaks.has(i) && !joins.marks.has(i)) {
       paginator.forcePageBreak();
     }
 
     // Handle keepNext chains - if this is a chain start, check if chain fits
     const chain = keepNextChains.get(i);
-    if (chain && !midChainIndices.has(i)) {
+    if (chain && !midChainIndices.has(i) && !joins.marks.has(i)) {
       const chainHeight = calculateChainHeight(chain, blocks, measures);
       const state = paginator.getCurrentState();
       const availableHeight = paginator.getAvailableHeight();
@@ -280,9 +283,12 @@ export function layoutDocument(
     }
 
     switch (block.kind) {
-      case 'paragraph':
-        layoutParagraph(block, measure as ParagraphMeasure, paginator, paginator.getContentWidth());
+      case 'paragraph': {
+        const paragraphMeasure = measure as ParagraphMeasure;
+        if (joins.marks.has(i)) placeJoinedMark(block, paragraphMeasure, paginator);
+        else layoutParagraph(block, paragraphMeasure, paginator, paginator.getContentWidth());
         break;
+      }
 
       case 'table':
         if (block.floating) {
@@ -306,7 +312,7 @@ export function layoutDocument(
         break;
 
       case 'pageBreak':
-        paginator.forcePageBreak();
+        if (!joins.breaks.has(i)) paginator.forcePageBreak();
         break;
 
       case 'columnBreak':
