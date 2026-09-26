@@ -367,8 +367,10 @@ function paragraphFormattingToAttrs(
     const styleRprWithDefaultChar = defaultCharStyleRpr
       ? mergeTextFormatting(styleRpr, defaultCharStyleRpr)
       : styleRpr;
-    const resolvedRunProps = resolveTextFormatting(formatting?.runProperties, styleResolver);
-    attrs.defaultTextFormatting = mergeTextFormatting(styleRprWithDefaultChar, resolvedRunProps);
+    attrs.defaultTextFormatting = mergeTextFormatting(
+      styleRprWithDefaultChar,
+      paragraphMarkFormatting(formatting?.runProperties, styleResolver)
+    );
 
     // If style defines numPr but inline doesn't, use style's numPr
     // numId === 0 means "no numbering" per OOXML spec — skip it
@@ -484,6 +486,27 @@ function convertInlineSdt(
     sdtPropsToAttrs(props),
     inlineNodes.length > 0 ? inlineNodes : undefined
   );
+}
+
+/**
+ * The paragraph mark's own `w:rPr` above the paragraph's run cascade (upstream 2eea4deb,
+ * #987): the character style its `w:rStyle` names (with its `basedOn` chain), then its
+ * direct properties. The style joins at the character level, so docDefaults are not
+ * applied again: `resolveRunStyle` restarts from them, and any mark `w:rPr` (a `w:lang`,
+ * a `w:b`) replaced the paragraph style's size and font with the document defaults. An
+ * id that names no character style changes nothing.
+ */
+function paragraphMarkFormatting(
+  mark: TextFormatting | undefined,
+  styleResolver: StyleResolver
+): TextFormatting | undefined {
+  if (!mark) return undefined;
+  const styleId = mark.styleId;
+  const characterStyle =
+    styleId && styleResolver.getStyle(styleId)?.type === 'character'
+      ? styleResolver.getRunStyleOwnProperties(styleId)
+      : undefined;
+  return mergeTextFormatting(characterStyle, mark);
 }
 
 type ParagraphContentToken = 'pageBreak' | 'visible';
