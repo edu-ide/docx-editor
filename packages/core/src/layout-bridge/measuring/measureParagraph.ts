@@ -418,11 +418,12 @@ export function measureParagraph(
   const bodyContentWidth = Math.max(1, maxWidth - indentLeft - indentRight);
   // First line offset: positive = first-line indent (less space), negative = hanging (more space)
   // Subtracting gives correct width in both cases.
-  // Inline list markers in the firstLine path eat into the body width too —
-  // subtract the marker's footprint so long markers don't push the last run
-  // past the right edge. The hanging path already widens via firstLineOffset
-  // (= firstLine − hanging) so it must not be subtracted again.
-  const markerInlineWidth = (indent?.hanging ?? 0) === 0 ? getListMarkerInlineWidth(block) : 0;
+  // The painter puts the list marker's slot at the start of the first line in
+  // both indent paths — at `left + firstLine`, or at `left - hanging` — and the
+  // text after it, so the text gets the width left after the slot. Skipping
+  // the slot on the hanging path measured the text `hanging` px wider than it
+  // is painted, and a full first line ran past the right indent.
+  const markerInlineWidth = getListMarkerInlineWidth(block);
   const baseFirstLineWidth = Math.max(1, bodyContentWidth - firstLineOffset - markerInlineWidth);
 
   // Track cumulative height for floating zone calculations
