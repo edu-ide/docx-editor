@@ -601,7 +601,7 @@
     "dist"
   ],
   "scripts": {
-    "build": "NODE_OPTIONS=\"${NODE_OPTIONS:---max-old-space-size=8192}\" tsup && node scripts/copy-assets.mjs && node ../../scripts/inject-package-doc.mjs --package @eigenpal/docx-editor-core",
+    "build": "NODE_OPTIONS=\"${NODE_OPTIONS:---max-old-space-size=16384}\" tsup && node scripts/copy-assets.mjs && node ../../scripts/inject-package-doc.mjs --package @eigenpal/docx-editor-core",
     "typecheck": "tsc --noEmit",
     "api:extract": "node ../../scripts/api-extractor.mjs --package @eigenpal/docx-editor-core --local",
     "api:check": "node ../../scripts/api-extractor.mjs --package @eigenpal/docx-editor-core"
