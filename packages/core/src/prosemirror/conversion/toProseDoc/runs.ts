@@ -78,10 +78,24 @@ export function convertField(
       fieldKind: field.type === 'simpleField' ? 'simple' : 'complex',
       fldLock: field.fldLock ?? false,
       dirty: field.dirty ?? false,
+      fieldCode: nestedFieldCodeAttr(field),
     },
     undefined,
     marks
   );
+}
+
+/**
+ * The field code of a complex field whose instruction holds nested fields, as the PM
+ * `fieldCode` attr (upstream 390c1772): the instruction string cannot carry a field, and
+ * save writes these runs back in place. Other fields keep `null` and save from `instruction`.
+ */
+function nestedFieldCodeAttr(field: SimpleField | ComplexField): string | null {
+  if (field.type !== 'complexField') return null;
+  const nested = field.fieldCode.some((run) =>
+    run.content.some((content) => content.type === 'fieldChar')
+  );
+  return nested ? JSON.stringify({ instruction: field.instruction, runs: field.fieldCode }) : null;
 }
 
 /**

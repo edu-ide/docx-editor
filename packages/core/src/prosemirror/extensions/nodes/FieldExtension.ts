@@ -28,6 +28,11 @@ export const FieldExtension = createNodeExtension({
       fldLock: { default: false },
       /** Field is dirty (needs update) */
       dirty: { default: false },
+      /**
+       * JSON `{ instruction, runs }`: the field code runs of a complex field whose
+       * instruction holds nested fields, which the instruction string cannot carry.
+       */
+      fieldCode: { default: null },
     },
     parseDOM: [
       {
@@ -41,19 +46,22 @@ export const FieldExtension = createNodeExtension({
             fieldKind: el.dataset.fieldKind || 'simple',
             fldLock: el.dataset.fldLock === 'true',
             dirty: el.dataset.dirty === 'true',
+            fieldCode: el.dataset.fieldCode || null,
           };
         },
       },
     ],
     toDOM(node) {
-      const { fieldType, instruction, displayText, fieldKind, fldLock, dirty } = node.attrs as {
-        fieldType: string;
-        instruction: string;
-        displayText: string;
-        fieldKind: string;
-        fldLock: boolean;
-        dirty: boolean;
-      };
+      const { fieldType, instruction, displayText, fieldKind, fldLock, dirty, fieldCode } =
+        node.attrs as {
+          fieldType: string;
+          instruction: string;
+          displayText: string;
+          fieldKind: string;
+          fldLock: boolean;
+          dirty: boolean;
+          fieldCode: string | null;
+        };
 
       // Dynamic fields show a placeholder; static fields show their display text
       let text = displayText || '';
@@ -88,6 +96,7 @@ export const FieldExtension = createNodeExtension({
           'data-field-kind': fieldKind,
           ...(fldLock ? { 'data-fld-lock': 'true' } : {}),
           ...(dirty ? { 'data-dirty': 'true' } : {}),
+          ...(fieldCode ? { 'data-field-code': fieldCode } : {}),
           style: 'outline: 1px solid rgba(200,200,200,0.4); padding: 0 1px; border-radius: 2px;',
         },
         text,

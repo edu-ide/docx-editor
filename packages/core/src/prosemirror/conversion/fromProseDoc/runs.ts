@@ -129,6 +129,23 @@ export function createTabRun(): Run {
 }
 
 /**
+ * The field code runs stored on a field whose instruction holds nested fields, while the
+ * field still has the instruction they were stored with; otherwise none, and save writes
+ * the instruction string.
+ */
+function nestedFieldCode(value: unknown, instruction: string): Run[] {
+  if (typeof value !== 'string' || !value) return [];
+  try {
+    const stored = JSON.parse(value) as { instruction?: unknown; runs?: unknown };
+    return stored.instruction === instruction && Array.isArray(stored.runs)
+      ? (stored.runs as Run[])
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
  * Create a SimpleField or ComplexField from a PM field node
  */
 export function createFieldFromNode(
@@ -173,7 +190,7 @@ export function createFieldFromNode(
       type: 'complexField',
       instruction: attrs.instruction,
       fieldType: attrs.fieldType as FieldType,
-      fieldCode: [],
+      fieldCode: nestedFieldCode(node.attrs.fieldCode, attrs.instruction),
       fieldResult: [displayRun],
       fldLock: attrs.fldLock || undefined,
       dirty: attrs.dirty || undefined,

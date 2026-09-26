@@ -395,6 +395,31 @@ function parseFieldType(instruction: string): FieldType {
 /**
  * Parse simple field (w:fldSimple)
  */
+/**
+ * A simple field written as the equivalent complex-field runs (begin, instruction,
+ * separate, cached result, end), for a field nested inside another field's
+ * instruction: `ComplexField.fieldCode` holds runs, and the serializer writes them
+ * back in place.
+ */
+function simpleFieldCodeRuns(field: SimpleField): Run[] {
+  const lock = field.fldLock ? { fldLock: true } : {};
+  const dirty = field.dirty ? { dirty: true } : {};
+  const fieldChar = (charType: 'begin' | 'separate' | 'end'): Run => ({
+    type: 'run',
+    content: [
+      { type: 'fieldChar', charType, ...(charType === 'begin' ? { ...lock, ...dirty } : {}) },
+    ],
+  });
+  const result = field.content.filter((item): item is Run => item.type === 'run');
+  return [
+    fieldChar('begin'),
+    { type: 'run', content: [{ type: 'instrText', text: field.instruction }] },
+    fieldChar('separate'),
+    ...result,
+    fieldChar('end'),
+  ];
+}
+
 function parseSimpleField(
   node: XmlElement,
   styles: StyleMap | null,
@@ -466,6 +491,8 @@ export function parseParagraphContents(
   let complexFieldLock = false;
   let complexFieldDirty = false;
   let complexFieldFormatting: Run['formatting'] | undefined;
+  /** Open fields nested inside the current complex field's instruction. */
+  let codeNesting = 0;
 
   for (const child of children) {
     const localName = getLocalName(child.name);
@@ -499,9 +526,20 @@ export function parseParagraphContents(
           }
         }
 
+        // A field nested inside the instruction is input to the outer field
+        // (upstream 390c1772): its runs, cached result included, stay in the
+        // outer field code, so the result is never displayed and saves in place.
+        if (inComplexField && !afterSeparator && (codeNesting > 0 || hasFieldBegin)) {
+          if (hasFieldBegin) codeNesting += 1;
+          if (hasFieldEnd) codeNesting -= 1;
+          complexFieldCodeRuns.push(run);
+          break;
+        }
+
         if (hasFieldBegin) {
           // Starting a new complex field
           inComplexField = true;
+          codeNesting = 0;
           afterSeparator = false;
           complexFieldInstr = '';
           complexFieldCodeRuns = [];
@@ -575,7 +613,14 @@ export function parseParagraphContents(
         break;
 
       case 'fldSimple':
-        contents.push(parseSimpleField(child, styles, theme, rels, media));
+        if (inComplexField && !afterSeparator) {
+          // Input to the outer field's instruction, like a nested complex field.
+          complexFieldCodeRuns.push(
+            ...simpleFieldCodeRuns(parseSimpleField(child, styles, theme, rels, media))
+          );
+        } else {
+          contents.push(parseSimpleField(child, styles, theme, rels, media));
+        }
         break;
 
       case 'pPr':
