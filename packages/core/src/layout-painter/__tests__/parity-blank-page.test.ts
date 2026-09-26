@@ -5,7 +5,13 @@
  */
 import { GlobalRegistrator } from '@happy-dom/global-registrator';
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
-import { PAGE_CLASS_NAMES, renderPage, type HeaderFooterContent } from '../renderPage';
+import {
+  PAGE_CLASS_NAMES,
+  renderAllPagesNow,
+  renderPage,
+  renderPages,
+  type HeaderFooterContent,
+} from '../renderPage';
 import { WATERMARK_LAYER_CLASS } from '../renderWatermark';
 import type { Page, ParagraphBlock, ParagraphMeasure } from '../../layout-engine/types';
 
@@ -93,5 +99,59 @@ describe('blank parity page', () => {
     expect(el.querySelector(`.${PAGE_CLASS_NAMES.footer}`)?.textContent).toContain('FOOTER');
     expect(el.querySelector(`.${WATERMARK_LAYER_CLASS}`)).not.toBeNull();
     expect(el.querySelector('.layout-page-border')).not.toBeNull();
+  });
+});
+
+describe('blank parity page in the virtualized page view', () => {
+  let originalObserver: typeof globalThis.IntersectionObserver | undefined;
+  beforeAll(() => {
+    // Shells stay empty until populated explicitly, as off-screen pages do.
+    originalObserver = globalThis.IntersectionObserver;
+    globalThis.IntersectionObserver = class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+      takeRecords() {
+        return [];
+      }
+    } as unknown as typeof globalThis.IntersectionObserver;
+  });
+  afterAll(() => {
+    globalThis.IntersectionObserver = originalObserver!;
+  });
+
+  /** Twelve pages (past the virtualization threshold); page 2 optionally blank. */
+  const pages = (blank: boolean): Page[] =>
+    Array.from({ length: 12 }, (_, index) => ({
+      ...makePage(index === 1 && blank),
+      number: index + 1,
+    }));
+
+  test('a page that turns blank or back repaints its header and footer', () => {
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const options = {
+      document,
+      headerContent: storyContent('HEADER'),
+      footerContent: storyContent('FOOTER'),
+    };
+    const pageTwo = () => container.children[1] as HTMLElement;
+    const furnished = () =>
+      pageTwo().querySelector(`.${PAGE_CLASS_NAMES.header}`) !== null &&
+      pageTwo().querySelector(`.${PAGE_CLASS_NAMES.footer}`) !== null;
+
+    renderPages(pages(true), container, options);
+    renderAllPagesNow(container);
+    expect(furnished()).toBe(false);
+    expect(pageTwo().dataset.parityBlank).toBe('true');
+
+    // Same page count and options: the incremental path updates page 2 in place.
+    expect(renderPages(pages(false), container, options)).toBe('incremental');
+    expect(furnished()).toBe(true);
+    expect(pageTwo().dataset.parityBlank).toBeUndefined();
+
+    renderPages(pages(true), container, options);
+    expect(furnished()).toBe(false);
+    container.remove();
   });
 });

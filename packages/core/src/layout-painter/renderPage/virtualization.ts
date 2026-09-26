@@ -483,6 +483,9 @@ function populatePageShell(
   while (fullPageEl.firstChild) {
     shell.appendChild(fullPageEl.firstChild);
   }
+  // The shell remembers whether it holds a blank parity page (no header or footer).
+  if (data.page.parityBlank) shell.dataset.parityBlank = 'true';
+  else delete shell.dataset.parityBlank;
 
   data.rendered = true;
 }
@@ -508,8 +511,11 @@ function repopulatePageContent(
   // Extract the new content area from the rendered page
   const newContentEl = fullPageEl.querySelector(`.${PAGE_CLASS_NAMES.content}`);
   const oldContentEl = shell.querySelector(`.${PAGE_CLASS_NAMES.content}`);
+  // A page that turned into a blank parity page, or back, changes its header and
+  // footer too, so the whole shell is replaced.
+  const blankChanged = (shell.dataset.parityBlank === 'true') !== (data.page.parityBlank === true);
 
-  if (newContentEl && oldContentEl) {
+  if (newContentEl && oldContentEl && !blankChanged) {
     // Replace only the content area — header/footer stay untouched
     shell.replaceChild(newContentEl, oldContentEl);
   } else {
