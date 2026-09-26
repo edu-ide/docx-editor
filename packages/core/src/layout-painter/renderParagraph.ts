@@ -512,9 +512,10 @@ export function renderParagraphFragment(
       lineEl.style.paddingRight = `${indentRight}px`;
     }
 
-    // First-line list marker. The marker occupies a `hanging`-wide slot
-    // (its min-width) starting `hanging` left of the body, i.e. at
-    // `indentLeft - hanging`; the body then lands at `indentLeft`. The offset
+    // First-line list marker. The marker's slot (its min-width, from
+    // `getListMarkerInlineWidth`) starts at `indentLeft - hanging`, and the
+    // body lands where the slot ends: at `indentLeft`, or at a nearer tab stop
+    // or right after the marker for a `space` / `nothing` suffix. The offset
     // rides on padding-left (NOT text-indent: Chrome folds text-indent into
     // the first inline-block's box, overriding the marker's min-width and
     // breaking tab-stop alignment).

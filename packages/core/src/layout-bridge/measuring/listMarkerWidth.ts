@@ -64,6 +64,9 @@ export function resolveListMarkerFont(block: ParagraphBlock): {
  * candidates, and the *closest* one past the marker wins (§17.6.13: the
  * default grid is not erased by custom tabs, just augmented).
  *
+ * A hanging list's marker starts at `left - hanging`; see
+ * {@link hangingMarkerSlotWidth} for where its text starts.
+ *
  * `attrs.tabs` here is the layout-engine `TabStop` shape (`val` + `pos`),
  * not the docx-types `TabStop` (`alignment` + `position`).
  */
@@ -73,7 +76,6 @@ export function getListMarkerInlineWidth(block: ParagraphBlock): number {
 
   const indent = attrs.indent;
   const hanging = indent?.hanging ?? 0;
-  if (hanging > 0) return hanging;
 
   const { fontFamily, fontSize } = resolveListMarkerFont(block);
   const style: FontStyle = { fontFamily, fontSize };
@@ -83,6 +85,7 @@ export function getListMarkerInlineWidth(block: ParagraphBlock): number {
   const suffix = attrs.listMarkerSuffix ?? 'tab';
   if (suffix === 'nothing') return naturalWidth;
   if (suffix === 'space') return naturalWidth + measureTextWidth(' ', style);
+  if (hanging > 0) return hangingMarkerSlotWidth(block, hanging, naturalWidth);
 
   // Default suffix is `tab`. Body text aligns at the next stop past
   // `markerStart + naturalWidth`. `>=` (not `>`) is intentional: a tab
@@ -120,4 +123,26 @@ export function getListMarkerInlineWidth(block: ParagraphBlock): number {
     return naturalWidth + ptToPx(fontSize) * 0.5;
   }
   return bodyStart - markerStartPx;
+}
+
+/**
+ * Where a hanging list's `tab` suffix sends its text (§17.9.25, upstream
+ * bf776f2d #979). The marker starts at `left - hanging`. The hanging indent is
+ * an implicit stop for the suffix tab, but not the only one: an authored stop
+ * (`num` included, `clear` and `bar` not) strictly past the marker's end and
+ * before the indent is nearer, so the first line's text starts there, left of
+ * the indent. A stop at or past the indent does not pull the text right, and
+ * default-grid stops never compete. A marker wider than its slot keeps its
+ * natural width (the slot is a `min-width`).
+ */
+function hangingMarkerSlotWidth(block: ParagraphBlock, hanging: number, markerWidth: number) {
+  const indentLeft = block.attrs?.indent?.left ?? 0;
+  const markerStart = indentLeft - hanging;
+  const markerEnd = markerStart + markerWidth;
+  if (markerEnd > indentLeft) return hanging;
+  const nearer = (block.attrs?.tabs ?? [])
+    .filter((t) => t.val !== 'clear' && t.val !== 'bar')
+    .map((t) => twipsToPixels(t.pos))
+    .filter((px) => px > markerEnd && px < indentLeft);
+  return nearer.length > 0 ? Math.min(...nearer) - markerStart : hanging;
 }
