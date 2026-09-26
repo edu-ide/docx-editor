@@ -951,6 +951,8 @@ export type Page = {
   footnoteColumns?: number;
   /** Column layout for this page (if multi-column). */
   columns?: ColumnLayout;
+  /** Blank page an odd/even-page section break inserts; painted without header/footer. */
+  parityBlank?: boolean;
 };
 
 /**

@@ -298,6 +298,23 @@ export function createPaginator(options: PaginatorOptions) {
   }
 
   /**
+   * Break to the next page whose number has `parity`, for an `oddPage` /
+   * `evenPage` section (ECMA-376 §17.18.77). When the page after the break has
+   * the other parity, it is left as a blank parity page — no body, header,
+   * footer, watermark or page border (`Page.parityBlank`) — and the section
+   * starts on the page after it. `forcePageBreak` cannot add that page: it is
+   * idempotent on an empty page. The first page never becomes a parity page.
+   * Upstream 6794f4d3 (#978) adapted to the page-number paginator.
+   */
+  function forceParityPageBreak(parity: 'odd' | 'even'): PageState {
+    const state = forcePageBreak();
+    const isEven = state.page.number % 2 === 0;
+    if (state.page.number === 1 || isEven === (parity === 'even')) return state;
+    state.page.parityBlank = true;
+    return createNewPage();
+  }
+
+  /**
    * Force a column break - move to next column or new page.
    */
   function forceColumnBreak(): PageState {
@@ -397,6 +414,8 @@ export function createPaginator(options: PaginatorOptions) {
     addFragment,
     /** Force a page break. */
     forcePageBreak,
+    /** Force a page break to the next page of the given parity. */
+    forceParityPageBreak,
     /** Force a column break. */
     forceColumnBreak,
     /** Get X position for column. */

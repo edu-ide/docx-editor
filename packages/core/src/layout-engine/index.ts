@@ -917,25 +917,14 @@ function handleSectionBreak(
       paginator.forcePageBreak();
       break;
 
-    case 'evenPage': {
+    case 'evenPage':
+    case 'oddPage':
+      // Start on the next page number of the section's parity. A second
+      // `forcePageBreak` cannot add the skipped page — it is idempotent on the
+      // empty page the first break made — so the paginator inserts it.
       paginator.updatePageLayout(nextSectionConfig.pageSize, nextSectionConfig.margins);
-      const state = paginator.forcePageBreak();
-      // If landed on odd page, add another page
-      if (state.page.number % 2 !== 0) {
-        paginator.forcePageBreak();
-      }
+      paginator.forceParityPageBreak(breakType === 'evenPage' ? 'even' : 'odd');
       break;
-    }
-
-    case 'oddPage': {
-      paginator.updatePageLayout(nextSectionConfig.pageSize, nextSectionConfig.margins);
-      const state = paginator.forcePageBreak();
-      // If landed on even page, add another page
-      if (state.page.number % 2 === 0) {
-        paginator.forcePageBreak();
-      }
-      break;
-    }
 
     case 'continuous': {
       // ECMA-376 §17.6.22: a `continuous` break normally keeps the current page

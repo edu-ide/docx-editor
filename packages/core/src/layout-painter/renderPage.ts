@@ -470,6 +470,17 @@ export function renderPage(
 
   applyPageStyles(pageEl, page.size.w, page.size.h, options);
 
+  // The blank page an odd/even-page section break inserts prints empty: Word
+  // gives it no header, footer, watermark or page border (upstream 6794f4d3).
+  if (page.parityBlank) {
+    pageEl.dataset.parityBlank = 'true';
+    const blankContentEl = doc.createElement('div');
+    blankContentEl.className = PAGE_CLASS_NAMES.content;
+    applyContentAreaStyles(blankContentEl, page);
+    pageEl.appendChild(blankContentEl);
+    return pageEl;
+  }
+
   // Watermark layer: painted first so it sits behind the body content area
   // (which is appended later), matching Word's behind-text watermark.
   if (options.watermark) {
