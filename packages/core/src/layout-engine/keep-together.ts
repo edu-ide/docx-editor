@@ -19,6 +19,12 @@ export type KeepNextChain = {
   memberIndices: number[];
   /** Index of the anchor paragraph (first non-keepNext after chain), or -1 if none. */
   anchorIndex: number;
+  /**
+   * The chain ends at a forced break — a page or column break, or a paragraph with
+   * `pageBreakBefore` — so nothing after it shares the page, and the last member's
+   * trailing spacing is discarded there (upstream ab460dc9, #985).
+   */
+  endsAtBreak?: boolean;
 };
 
 /**
@@ -49,16 +55,24 @@ export function computeKeepNextChains(blocks: FlowBlock[]): Map<number, KeepNext
     // Found a keepNext paragraph - scan forward to find full chain
     const memberIndices: number[] = [i];
     let endIndex = i;
+    let endsAtBreak = false;
 
     for (let j = i + 1; j < blocks.length; j++) {
       const nextBlock = blocks[j];
 
-      // Breaks terminate the chain
+      // A forced break ends the keep group: what follows starts on another page or
+      // column, so a member or anchor past it would strand the chain on a page alone.
       if (
-        nextBlock.kind === 'sectionBreak' ||
         nextBlock.kind === 'pageBreak' ||
-        nextBlock.kind === 'columnBreak'
+        nextBlock.kind === 'columnBreak' ||
+        hasPageBreakBefore(nextBlock)
       ) {
+        endsAtBreak = true;
+        break;
+      }
+
+      // Section breaks terminate the chain
+      if (nextBlock.kind === 'sectionBreak') {
         break;
       }
 
@@ -83,7 +97,7 @@ export function computeKeepNextChains(blocks: FlowBlock[]): Map<number, KeepNext
     const potentialAnchor = endIndex + 1;
     let anchorIndex = -1;
 
-    if (potentialAnchor < blocks.length) {
+    if (!endsAtBreak && potentialAnchor < blocks.length) {
       const anchorBlock = blocks[potentialAnchor];
       // Anchor must not be a break
       if (
@@ -101,6 +115,7 @@ export function computeKeepNextChains(blocks: FlowBlock[]): Map<number, KeepNext
       endIndex,
       memberIndices,
       anchorIndex,
+      ...(endsAtBreak ? { endsAtBreak } : {}),
     });
   }
 
@@ -136,9 +151,11 @@ export function calculateChainHeight(
     // Add paragraph height
     totalHeight += paraMeasure.totalHeight;
 
-    // Add spacing after
+    // Add spacing after. A forced break after the chain discards the last member's
+    // trailing spacing, including the part `totalHeight` carries.
     const spacingAfter = para.attrs?.spacing?.after ?? 0;
-    totalHeight += spacingAfter;
+    if (chain.endsAtBreak && memberIndex === chain.endIndex) totalHeight -= spacingAfter;
+    else totalHeight += spacingAfter;
   }
 
   // Add first line height of anchor (if any)
