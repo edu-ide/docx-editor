@@ -311,6 +311,10 @@ function isBreakChar(c: string): boolean {
  * Gluing continues across runs while each run is one unbreakable token (no
  * break char anywhere); it stops at the first run that starts with whitespace,
  * contains a break char, or is not a text run.
+ *
+ * No-break characters (U+00A0, U+2007, U+202F, U+2060, U+FEFF) are not break
+ * chars, so a run holding only one of them glues its neighbours exactly as the
+ * same text in one run does (upstream ae1afe03, #976).
  */
 function trailingGlueWidth(runs: Run[], afterIdx: number): number {
   let total = 0;
@@ -328,8 +332,11 @@ function trailingGlueWidth(runs: Run[], afterIdx: number): number {
       continue;
     }
     // A break opportunity exists within this run: include only the leading
-    // token (trailing space trimmed; a hyphen stays, it is part of the unit).
-    const leading = t.slice(0, breaks[0]).replace(/[ \t]+$/, '');
+    // token, measured as the word loop measures it — with the space, tab or
+    // hyphen that ends it. A trimmed token let the cluster pass this check on
+    // a line where the token then failed its own fit check, so the line broke
+    // at the run seam instead of before the cluster.
+    const leading = t.slice(0, breaks[0]);
     total += measureTextWidth(leading, style);
     break;
   }
