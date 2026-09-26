@@ -9,6 +9,7 @@ type ImplementedSharedPropKeys =
   | 'showToolbar'
   | 'documentName'
   | 'readOnly'
+  | 'commentIdAllocatorOptions'
   | 'mode'
   | 'i18n'
   | 'externalPlugins';

@@ -914,16 +914,12 @@ export function measureParagraph(
 
       // Process text word by word
       let charIndex = 0;
+      let wordBreakIndex = 0;
 
       while (charIndex < text.length) {
-        // Find next word boundary
-        let nextBreak = text.length;
-        for (const breakPoint of wordBreaks) {
-          if (breakPoint > charIndex) {
-            nextBreak = breakPoint;
-            break;
-          }
-        }
+        // Consume each boundary once. Restarting at the first boundary for
+        // every word makes space-heavy paragraphs quadratic in their length.
+        const nextBreak = wordBreaks[wordBreakIndex++] ?? text.length;
 
         // Extract word (includes trailing space if present)
         const word = text.slice(charIndex, nextBreak);

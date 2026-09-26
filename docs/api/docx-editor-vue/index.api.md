@@ -6,6 +6,7 @@
 
 import { App } from 'vue';
 import { Comment as Comment_2 } from '@eigenpal/docx-editor-core/types/content';
+import { CommentIdAllocatorOptions } from '@eigenpal/docx-editor-core/prosemirror/commentIdAllocator';
 import { ContentControlFilter } from '@eigenpal/docx-editor-core/agent';
 import { ContentControlValue } from '@eigenpal/docx-editor-core/agent';
 import { createDocumentWithText } from '@eigenpal/docx-editor-core';
@@ -53,6 +54,7 @@ export interface DocxEditorProps {
     author?: string;
     className?: string;
     colorMode?: 'light' | 'dark' | 'system';
+    commentIdAllocatorOptions?: CommentIdAllocatorOptions;
     commentsSidebarOpen?: boolean;
     disableFindReplaceShortcuts?: boolean;
     document?: Document_2 | null;

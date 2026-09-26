@@ -827,7 +827,7 @@ const bookmarkOptions = computed(() => {
 // One comment/revision ID allocator per editor instance (monotonic, no reuse),
 // shared by the comment lifecycle and management composables so comment and
 // tracked-change IDs never collide.
-const commentIdAllocator = createCommentIdAllocator();
+const commentIdAllocator = createCommentIdAllocator(props.commentIdAllocatorOptions);
 
 // Comment lifecycle: declared before useFileIO so IO can call extractCommentsAndChanges.
 const {

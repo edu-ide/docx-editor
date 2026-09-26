@@ -26,6 +26,8 @@ import type {
 import type { Theme } from '../../types/document';
 import { resolveColor, resolveHighlightToCss } from '../../utils/colorResolver';
 import { halfPointsToPixels, halfPointsToPoints } from '../../utils/units';
+import { mergeFontFamily } from '../../utils/fontFamilyMerge';
+import { resolveThemeFontRef } from '../../docx/themeParser';
 import { twipsToPixels, constrainImageToPage } from './shared';
 import type { ToFlowBlocksOptions } from './shared';
 
@@ -312,6 +314,60 @@ function isContentLocked(lock: unknown): boolean {
   return lock === 'contentLocked' || lock === 'sdtContentLocked';
 }
 
+/** East Asian font-slot ranges from upstream 01022a42's script itemizer. */
+function usesEastAsianFont(codePoint: number): boolean {
+  return (
+    (codePoint >= 0x1100 && codePoint <= 0x11ff) ||
+    (codePoint >= 0x2e80 && codePoint <= 0x318f) ||
+    (codePoint >= 0x31f0 && codePoint <= 0x31ff) ||
+    (codePoint >= 0x3400 && codePoint <= 0x4dbf) ||
+    (codePoint >= 0x4e00 && codePoint <= 0x9fff) ||
+    (codePoint >= 0xac00 && codePoint <= 0xd7af) ||
+    (codePoint >= 0xf900 && codePoint <= 0xfaff) ||
+    (codePoint >= 0xff66 && codePoint <= 0xff9d) ||
+    (codePoint >= 0xffa0 && codePoint <= 0xffdc) ||
+    (codePoint >= 0x20000 && codePoint <= 0x3134f)
+  );
+}
+
+/** Split only painted runs: editing, collaboration and saved OOXML retain their original runs. */
+function splitEastAsianFont(
+  run: TextRun,
+  family: FontFamilyAttrs,
+  theme?: Theme | null
+): TextRun[] {
+  const eastAsia = family.eastAsiaTheme
+    ? resolveThemeFontRef(theme, family.eastAsiaTheme)
+    : family.eastAsia;
+  if (!eastAsia || eastAsia === run.fontFamily || run.rtl) return [run];
+  const pieces: TextRun[] = [];
+  let from = 0;
+  let currentFamily: string | undefined;
+  for (let index = 0; index < run.text.length; ) {
+    const codePoint = run.text.codePointAt(index)!;
+    const fontFamily = usesEastAsianFont(codePoint) ? eastAsia : run.fontFamily;
+    if (index > from && fontFamily !== currentFamily) {
+      pieces.push({
+        ...run,
+        text: run.text.slice(from, index),
+        fontFamily: currentFamily,
+        pmStart: run.pmStart === undefined ? undefined : run.pmStart + from,
+        pmEnd: run.pmStart === undefined ? undefined : run.pmStart + index,
+      });
+      from = index;
+    }
+    currentFamily = fontFamily;
+    index += codePoint > 0xffff ? 2 : 1;
+  }
+  pieces.push({
+    ...run,
+    text: run.text.slice(from),
+    fontFamily: currentFamily,
+    pmStart: run.pmStart === undefined ? undefined : run.pmStart + from,
+  });
+  return pieces;
+}
+
 function inlineCheckboxWidgetFor(child: PMNode, childPos: number): InlineSdtWidget | undefined {
   const attrs = child.attrs as Record<string, unknown>;
   if (attrs.sdtType !== 'checkbox') return undefined;
@@ -338,6 +394,7 @@ export function paragraphToRuns(
   const offset = startPos + 1; // +1 for opening tag
   const theme = _options.theme;
   const paraDefaults = paragraphRunDefaults(node.attrs as PMParagraphAttrs);
+  const defaultFamily = (node.attrs as PMParagraphAttrs).defaultTextFormatting?.fontFamily;
 
   // Hyperlinks inside TOC paragraphs use the TOCx color, not the Hyperlink
   // character style's color — see `HyperlinkInfo.noDefaultStyle`.
@@ -363,7 +420,13 @@ export function paragraphToRuns(
         pmEnd: childPos + child.nodeSize,
         inlineSdtWidget,
       };
-      runs.push(run);
+      const markFamily = child.marks.find((mark) => mark.type.name === 'fontFamily')?.attrs;
+      // PM attributes may contain null defaults; omit them before slot merging.
+      const explicitFamily = Object.fromEntries(
+        Object.entries(markFamily ?? {}).filter(([, value]) => value != null)
+      );
+      const family = mergeFontFamily(defaultFamily, explicitFamily);
+      runs.push(...splitEastAsianFont(run, family, theme));
     } else if (child.type.name === 'hardBreak') {
       runs.push({
         kind: 'lineBreak',

@@ -1,0 +1,8 @@
+package(default_visibility = ["//visibility:public"])
+
+# Builds the package declarations required by the public API contract checks.
+sh_binary(
+    name = "build_packages",
+    srcs = ["scripts/build-packages-bazel.sh"],
+    tags = ["local"],
+)

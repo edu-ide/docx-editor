@@ -209,6 +209,49 @@ describe('wp:effectExtent round-trip stays separate from dist*', () => {
 });
 
 describe('wp:anchor layoutInCell / allowOverlap', () => {
+  test.each(['true', ' true\n', '1'])('accepts XML Schema true lexical value %j', (value) => {
+    const image: Image = {
+      type: 'image',
+      rId: 'rId1',
+      size: { width: 100, height: 100 },
+      wrap: { type: 'behind' },
+      layoutInCell: true,
+      allowOverlap: true,
+    };
+    const xml = serializeImage(image).replace(
+      /(behindDoc|layoutInCell|allowOverlap)="1"/g,
+      `$1="${value}"`
+    );
+    const parsed = reparseSerializedImage(xml);
+    expect(parsed?.wrap?.type).toBe('behind');
+    expect(parsed?.layoutInCell).toBe(true);
+    expect(parsed?.allowOverlap).toBe(true);
+  });
+  test.each(['false', ' false\n', '0'])(
+    'anchor false lexical value %j remains explicit after saving',
+    (value) => {
+      const image: Image = {
+        type: 'image',
+        rId: 'rId1',
+        size: { width: 100, height: 100 },
+        wrap: { type: 'square' },
+        layoutInCell: false,
+        allowOverlap: false,
+      };
+      const xml = serializeImage(image).replace(
+        /(behindDoc|layoutInCell|allowOverlap)="0"/g,
+        `$1="${value}"`
+      );
+      const parsed = reparseSerializedImage(xml);
+      expect(parsed?.wrap?.type).toBe('square');
+      expect(parsed?.layoutInCell).toBe(false);
+      expect(parsed?.allowOverlap).toBe(false);
+      const saved = serializeImage(parsed!);
+      expect(saved).toContain('layoutInCell="0"');
+      expect(saved).toContain('allowOverlap="0"');
+    }
+  );
+
   test('parse explicit "0" → false, "1" → true, absent → undefined', () => {
     const explicit0 = parseDrawingFromXml(`
       <wp:anchor distT="0" distB="0" distL="0" distR="0" simplePos="0"

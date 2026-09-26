@@ -19,7 +19,7 @@
 import { describe, test, expect } from 'bun:test';
 import { toProseDoc } from '../../prosemirror/conversion/toProseDoc';
 import { toFlowBlocks } from '../toFlowBlocks';
-import type { Document, Paragraph, StyleDefinitions } from '../../types/document';
+import type { Document, Paragraph, StyleDefinitions, Theme } from '../../types/document';
 import type { ParagraphBlock, TextRun } from '../../layout-engine/types';
 
 function makeDoc(paragraph: Paragraph, styles?: StyleDefinitions): Document {
@@ -41,6 +41,93 @@ function firstRun(blocks: unknown[]): TextRun {
 }
 
 describe('end-to-end cascade — #392 rFonts inheritance', () => {
+  test('selects eastAsia per script without changing text positions or Latin fonts', () => {
+    const text = 'Latin한글漢字カナ𠀀end';
+    const paragraph: Paragraph = {
+      type: 'paragraph',
+      content: [
+        {
+          type: 'run',
+          formatting: {
+            bold: true,
+            fontFamily: { ascii: 'Arial', hAnsi: 'Arial', eastAsia: 'Noto Serif CJK KR' },
+          },
+          content: [{ type: 'text', text }],
+        },
+      ],
+    };
+    const pmDoc = toProseDoc(makeDoc(paragraph));
+    const before = pmDoc.toJSON();
+    const runs = firstParagraph(toFlowBlocks(pmDoc, {})).runs as TextRun[];
+    expect(runs.map((r) => [r.text, r.fontFamily])).toEqual([
+      ['Latin', 'Arial'],
+      ['한글漢字カナ𠀀', 'Noto Serif CJK KR'],
+      ['end', 'Arial'],
+    ]);
+    expect(runs.map((r) => [r.pmStart, r.pmEnd])).toEqual([
+      [1, 6],
+      [6, 14],
+      [14, 17],
+    ]);
+    expect(runs.every((r) => r.bold)).toBe(true);
+    expect(pmDoc.toJSON()).toEqual(before);
+  });
+
+  test('inherits eastAsia from the paragraph style when the run only overrides Latin', () => {
+    const styles: StyleDefinitions = {
+      styles: [
+        {
+          styleId: 'Normal',
+          type: 'paragraph',
+          default: true,
+          name: 'Normal',
+          rPr: { fontFamily: { ascii: 'Arial', eastAsia: 'Malgun Gothic' } },
+        },
+      ],
+    };
+    const paragraph: Paragraph = {
+      type: 'paragraph',
+      content: [
+        {
+          type: 'run',
+          formatting: { fontFamily: { ascii: 'Courier New' } },
+          content: [{ type: 'text', text: '한글Latin' }],
+        },
+      ],
+    };
+    const runs = firstParagraph(
+      toFlowBlocks(toProseDoc(makeDoc(paragraph, styles), { styles }), {})
+    ).runs as TextRun[];
+    expect(runs.map((r) => [r.text, r.fontFamily])).toEqual([
+      ['한글', 'Malgun Gothic'],
+      ['Latin', 'Courier New'],
+    ]);
+  });
+
+  test('resolves eastAsiaTheme at the painting boundary and preserves the saved font slots', () => {
+    const theme = { fontScheme: { minorFont: { latin: 'Arial', ea: 'Malgun Gothic' } } } as Theme;
+    const paragraph: Paragraph = {
+      type: 'paragraph',
+      content: [
+        {
+          type: 'run',
+          formatting: {
+            fontFamily: { ascii: 'Arial', eastAsia: 'Ignored', eastAsiaTheme: 'minorEastAsia' },
+          },
+          content: [{ type: 'text', text: '한글ABC' }],
+        },
+      ],
+    };
+    const pmDoc = toProseDoc(makeDoc(paragraph));
+    const before = pmDoc.toJSON();
+    const runs = firstParagraph(toFlowBlocks(pmDoc, { theme })).runs as TextRun[];
+    expect(runs.map((run) => [run.text, run.fontFamily])).toEqual([
+      ['한글', 'Malgun Gothic'],
+      ['ABC', 'Arial'],
+    ]);
+    expect(pmDoc.toJSON()).toEqual(before);
+  });
+
   test('rFonts.ascii on Normal style reaches runs through basedOn chain', () => {
     // Reproduces #392 fixture shape:
     //   Normal style sets rFonts.ascii = 'Arial Narrow'

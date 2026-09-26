@@ -186,4 +186,44 @@ describe('Layout engine — table row breaking (Word fidelity)', () => {
     expect((tableFrags[0] as TableFragment).bottomClip).toBeUndefined();
     expect((tableFrags[0] as TableFragment).topClip).toBeUndefined();
   });
+
+  test('starts an oversized cantSplit row on a fresh page then splits at whole lines', () => {
+    const block = {
+      kind: 'table',
+      id: 300,
+      columnWidths: [100],
+      rows: [{ id: 0, cantSplit: true, cells: [{ id: 1, blocks: [para(1)] }] }],
+    } as unknown as TableBlock;
+    const measure: TableMeasure = {
+      kind: 'table',
+      columnWidths: [100],
+      totalWidth: 100,
+      totalHeight: 45 * LINE,
+      rows: [
+        {
+          height: 45 * LINE,
+          cells: [{ blocks: [paraMeasure(45)], width: 100, height: 45 * LINE }],
+        },
+      ],
+    };
+    const layout = layoutDocument(
+      [para(9), block],
+      [paraMeasure(1), measure],
+      makeLayoutOptions({
+        pageSize: { w: 816, h: 500 },
+        margins: { top: 50, right: 50, bottom: 50, left: 50 },
+      })
+    );
+    expect(layout.pages[0].fragments.every((f) => f.kind !== 'table')).toBe(true);
+    const fragments = layout.pages
+      .flatMap((p) => p.fragments)
+      .filter((f): f is TableFragment => f.kind === 'table');
+    expect(fragments.map((f) => f.height)).toEqual([400, 400, 100]);
+    expect(fragments.map((f) => [f.topClip ?? 0, f.bottomClip ?? 900])).toEqual([
+      [0, 400],
+      [400, 800],
+      [800, 900],
+    ]);
+    for (const fragment of fragments) expect(fragment.y + fragment.height).toBeLessThanOrEqual(450);
+  });
 });

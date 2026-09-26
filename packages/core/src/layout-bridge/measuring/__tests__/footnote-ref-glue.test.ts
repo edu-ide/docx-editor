@@ -41,6 +41,18 @@ function lineStartsAtRun(
 }
 
 describe('measureParagraph — cross-run glue (footnote reference must not split)', () => {
+  test('long space-heavy paragraphs retain every character and identical repeated line breaks', () => {
+    const text = 'word '.repeat(40_000);
+    const { lines } = measureParagraph(para([{ kind: 'text', text }]), w('word '.repeat(10)));
+    expect(lines).toHaveLength(4_000);
+    expect(lines.map((line) => text.slice(line.fromChar, line.toChar)).join('')).toBe(text);
+    for (const line of lines) {
+      expect(line.toChar - line.fromChar).toBe(50);
+      expect(line.fromRun).toBe(0);
+      expect(line.toRun).toBe(0);
+    }
+  });
+
   // run0 ends with "beta." (no trailing space); run1 is the footnote ref "1"
   // (a separate superscript run, no space before it); run2 begins with a space.
   test('footnote-ref run never starts its own line (no space before it)', () => {

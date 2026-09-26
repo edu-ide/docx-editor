@@ -5,6 +5,7 @@
 ```ts
 
 import { Comment as Comment_2 } from '@eigenpal/docx-editor-core/types/content';
+import { CommentIdAllocatorOptions } from '@eigenpal/docx-editor-core/prosemirror/commentIdAllocator';
 import { ContentControlFilter } from '@eigenpal/docx-editor-core/agent';
 import { ContentControlValue } from '@eigenpal/docx-editor-core/agent';
 import { createDocumentWithText } from '@eigenpal/docx-editor-core';
@@ -26,6 +27,7 @@ import { PrintOptions } from '@eigenpal/docx-editor-core';
 import * as prosemirror_state from 'prosemirror-state';
 import * as prosemirror_view from 'prosemirror-view';
 import * as React_2 from 'react';
+import * as react_jsx_runtime from 'react/jsx-runtime';
 import { ReactNode } from 'react';
 import { RenderedDomContext } from '@eigenpal/docx-editor-core/plugin-api';
 import { ScrollToParaIdOptions } from '@eigenpal/docx-editor-core/utils';
@@ -58,6 +60,7 @@ export interface DocxEditorProps {
     author?: string;
     className?: string;
     colorMode?: 'light' | 'dark' | 'system';
+    commentIdAllocatorOptions?: CommentIdAllocatorOptions;
     comments?: Comment_2[];
     commentsSidebarOpen?: boolean;
     disableFindReplaceShortcuts?: boolean;
@@ -230,7 +233,7 @@ export interface DocxEditorRef {
 export type EditorMode = 'editing' | 'suggesting' | 'viewing';
 
 // @public (undocumented)
-export function LocaleProvider(input: LocaleProviderProps): React_2.JSX.Element;
+export function LocaleProvider(input: LocaleProviderProps): react_jsx_runtime.JSX.Element;
 
 // @public (undocumented)
 export interface LocaleProviderProps {

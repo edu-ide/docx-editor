@@ -13,6 +13,7 @@ import type { EditorView } from 'prosemirror-view';
 import type { Document, Theme } from '@eigenpal/docx-editor-core/types/document';
 import type { Comment } from '@eigenpal/docx-editor-core/types/content';
 import type { SelectionState } from '@eigenpal/docx-editor-core/prosemirror';
+import type { CommentIdAllocatorOptions } from '@eigenpal/docx-editor-core/prosemirror/commentIdAllocator';
 import type { DocxInput } from '@eigenpal/docx-editor-core/utils';
 import type { ScrollToParaIdOptions } from '@eigenpal/docx-editor-core/utils';
 import type { FontOption } from '@eigenpal/docx-editor-core/utils/fontOptions';
@@ -52,6 +53,8 @@ export interface DocxEditorProps {
   readOnly?: boolean;
   /** Author name used for comments and tracked changes created in the UI. Defaults to `'User'`. */
   author?: string;
+  /** Optional comment/revision ID allocation policy. Set a sharded policy for collaborative peers; omitted uses the default single-editor allocator. */
+  commentIdAllocatorOptions?: CommentIdAllocatorOptions;
   /** Editor mode: direct editing, suggesting, or viewing. */
   mode?: EditorMode;
   /** Callback when the editing mode changes. */

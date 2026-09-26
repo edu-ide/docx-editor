@@ -58,6 +58,14 @@ import {
 // Re-export for backwards compatibility
 export { emuToPixels, pixelsToEmu } from '../utils/units';
 
+/** wp:anchor flags are xsd:boolean, not Word's broader ST_OnOff (upstream #954). */
+function anchorBoolean(value: string | null): boolean | undefined {
+  const normalized = value?.trim();
+  if (normalized === '1' || normalized === 'true') return true;
+  if (normalized === '0' || normalized === 'false') return false;
+  return undefined;
+}
+
 // ============================================================================
 // ROTATION CONVERSION
 // ============================================================================
@@ -568,15 +576,15 @@ function parseAnchor(
   const props = parseDocProps(docPr);
 
   // Check behindDoc attribute
-  const behindDoc = getAttribute(anchorEl, null, 'behindDoc') === '1';
+  const behindDoc = anchorBoolean(getAttribute(anchorEl, null, 'behindDoc')) === true;
 
   // OOXML defaults to "1" (true) when these attributes are absent. We only
   // record the value when the spec deviates from the default, so round-trip
   // serialization can keep the document terse.
   const layoutInCellAttr = getAttribute(anchorEl, null, 'layoutInCell');
-  const layoutInCell = layoutInCellAttr === null ? undefined : layoutInCellAttr === '1';
+  const layoutInCell = anchorBoolean(layoutInCellAttr);
   const allowOverlapAttr = getAttribute(anchorEl, null, 'allowOverlap');
-  const allowOverlap = allowOverlapAttr === null ? undefined : allowOverlapAttr === '1';
+  const allowOverlap = anchorBoolean(allowOverlapAttr);
 
   // Read distance attributes from the wp:anchor element itself (fallback values)
   const anchorDistances = {

@@ -434,7 +434,7 @@ export type TableRow = {
   heightRule?: 'auto' | 'atLeast' | 'exact';
   isHeader?: boolean;
   /**
-   * `w:cantSplit` (§17.4.6): the row may not break across a page boundary.
+   * `w:cantSplit` (§17.4.6): keep the row whole unless it exceeds a fresh page.
    * The layout engine keeps such a row whole, moving it wholesale to the next
    * page rather than splitting its content.
    */

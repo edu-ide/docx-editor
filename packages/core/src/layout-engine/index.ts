@@ -41,7 +41,7 @@ import {
   hasPageBreakBefore,
 } from './keep-together';
 import { isFloatingTextBoxBlock } from './textBoxFlow';
-import { buildTableRowBreakInfo, snapRowBreak } from './tableRowBreak';
+import { buildTableRowBreakInfo, prepareUnsplitRow, snapRowBreak } from './tableRowBreak';
 import { MIN_WRAP_SEGMENT_WIDTH } from '../layout-bridge/measuring/floatingZones';
 import { getParagraphFragmentPmRange } from './paragraphFragmentRange';
 import { balanceTerminalContinuousTextColumns } from './columnBalancing';
@@ -532,7 +532,6 @@ function layoutTable(
     return;
   }
 
-  // Detect header rows (consecutive rows at start with isHeader: true)
   const headerRowCount = countHeaderRows(block);
   const headerRowsHeight = getHeaderRowsHeight(measure, headerRowCount);
   const breakInfo = buildTableRowBreakInfo(block, measure);
@@ -541,6 +540,9 @@ function layoutTable(
   let consumed = 0; // px of rows[rowIndex] already placed on a previous fragment
 
   while (rowIndex < rows.length) {
+    if (block.rows[rowIndex]?.cantSplit && consumed === 0) {
+      prepareUnsplitRow(paginator, rows[rowIndex].height, rowIndex > 0 ? headerRowsHeight : 0);
+    }
     const state = paginator.getCurrentState();
     const isFirstFragment = rowIndex === 0 && consumed === 0;
 
@@ -579,11 +581,13 @@ function layoutTable(
       // at the deepest whole line that fits (Word's "allow row to break across
       // pages") — this keeps the row's other columns on the page where they
       // start and flows a tall vertically-merged cell across the boundary.
-      // `w:cantSplit` rows (§17.4.6) never break.
+      // Keep ordinary cantSplit rows whole. Oversized ones may break only
+      // after preceding rows have been placed and a fresh page is available.
       const budget = availableHeight - used;
-      const placeable = block.rows[cur]?.cantSplit
-        ? 0
-        : snapRowBreak(breakInfo, cur, startOff, budget);
+      const cantSplit = block.rows[cur]?.cantSplit;
+      const freshCapacity = state.contentBottom - state.topMargin - headerOverhead;
+      const keepWhole = cantSplit && (rowHeight <= freshCapacity || cur !== startRow);
+      const placeable = keepWhole ? 0 : snapRowBreak(breakInfo, cur, startOff, budget);
       if (placeable > 0) {
         // Break this row mid-content at a whole-line boundary.
         used += placeable;
@@ -651,7 +655,7 @@ function layoutTable(
     if (rowIndex < rows.length) {
       const nextNeeded =
         (headerRowCount > 0 ? headerRowsHeight : 0) + (rows[rowIndex].height - consumed);
-      paginator.ensureFits(nextNeeded);
+      paginator.ensureFits(Math.min(nextNeeded, state.contentBottom - state.topMargin));
     }
   }
 }

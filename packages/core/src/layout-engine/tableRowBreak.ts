@@ -13,6 +13,7 @@
  */
 
 import type { TableBlock, TableMeasure } from './types';
+import type { createPaginator } from './paginator';
 import { resolveCellGrid } from '../layout-bridge/tableWidthUtils';
 import { layoutCellContent } from '../layout-bridge/cellBlockLayout';
 
@@ -104,4 +105,15 @@ export function snapRowBreak(
     else break;
   }
   return best;
+}
+
+/** Move an unsplittable row to a fresh page, then allow oversized rows to flow. */
+export function prepareUnsplitRow(
+  paginator: ReturnType<typeof createPaginator>,
+  rowHeight: number,
+  headerHeight: number
+): void {
+  // ECMA-376 §17.4.6; upstream e6616fe2 adapted to the measured-row paginator.
+  const state = paginator.getCurrentState();
+  paginator.ensureFits(Math.min(rowHeight + headerHeight, state.contentBottom - state.topMargin));
 }

@@ -12,8 +12,14 @@ export interface CommentIdAllocator {
     seedAbove(maxId: number): void;
 }
 
+// @public (undocumented)
+export interface CommentIdAllocatorOptions {
+    shardOffset?: number;
+    shardStride?: number;
+}
+
 // @public
-export function createCommentIdAllocator(): CommentIdAllocator;
+export function createCommentIdAllocator(options?: CommentIdAllocatorOptions): CommentIdAllocator;
 
 // @public
 export const PENDING_COMMENT_ID = -1;
