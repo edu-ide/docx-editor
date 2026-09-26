@@ -105,6 +105,7 @@ export function createPaginator(options: PaginatorOptions): {
         y: number;
     };
     forcePageBreak: () => PageState;
+    forceParityPageBreak: (parity: "odd" | "even") => PageState;
     forceColumnBreak: () => PageState;
     getColumnX: (columnIndex: number) => number;
     updateColumns: (newColumns: ColumnLayout) => void;
@@ -344,6 +345,7 @@ export type KeepNextChain = {
     endIndex: number;
     memberIndices: number[];
     anchorIndex: number;
+    endsAtBreak?: boolean;
 };
 
 // @public
@@ -451,6 +453,7 @@ export type Page = {
     footnoteReservedHeight?: number;
     footnoteColumns?: number;
     columns?: ColumnLayout;
+    parityBlank?: boolean;
 };
 
 // @public

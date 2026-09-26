@@ -1103,6 +1103,7 @@ export type Page = {
     footnoteReservedHeight?: number;
     footnoteColumns?: number;
     columns?: ColumnLayout;
+    parityBlank?: boolean;
 };
 
 // @public
