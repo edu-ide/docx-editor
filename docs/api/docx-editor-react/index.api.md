@@ -27,7 +27,6 @@ import { PrintOptions } from '@eigenpal/docx-editor-core';
 import * as prosemirror_state from 'prosemirror-state';
 import * as prosemirror_view from 'prosemirror-view';
 import * as React_2 from 'react';
-import * as react_jsx_runtime from 'react/jsx-runtime';
 import { ReactNode } from 'react';
 import { RenderedDomContext } from '@eigenpal/docx-editor-core/plugin-api';
 import { ScrollToParaIdOptions } from '@eigenpal/docx-editor-core/utils';
@@ -233,7 +232,7 @@ export interface DocxEditorRef {
 export type EditorMode = 'editing' | 'suggesting' | 'viewing';
 
 // @public (undocumented)
-export function LocaleProvider(input: LocaleProviderProps): react_jsx_runtime.JSX.Element;
+export function LocaleProvider(input: LocaleProviderProps): React_2.JSX.Element;
 
 // @public (undocumented)
 export interface LocaleProviderProps {
