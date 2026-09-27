@@ -2,8 +2,8 @@
  * Document Paragraph → PM paragraph node (Document → ProseMirror direction).
  *
  * Owns `convertParagraph` (the per-block walker), the comment-range mark
- * applier, tracked-change wrappers, paragraph-attrs projection, and the
- * page-break detector consumed by the top-level orchestrator. `convertInlineSdt`
+ * applier, tracked-change wrappers, and paragraph-attrs projection; page
+ * breaks before a paragraph come from ./pageBreaks.ts. `convertInlineSdt`
  * lives here (not in ./runs.ts) because it recurses through `convertRun`/
  * `convertHyperlink`/`convertField` — the same cycle-break pattern as
  * fromProseDoc.
@@ -16,14 +16,13 @@ import type {
   Paragraph,
   Run,
   TextFormatting,
-  Hyperlink,
   Insertion,
   Deletion,
   MoveFrom,
   MoveTo,
   InlineSdt,
-  RunContent,
 } from '../../../types/document';
+import { assignPageBreakBefore } from './pageBreaks';
 import { mergeTextFormatting } from '../../../utils/textFormattingMerge';
 import type { StyleResolver } from '../../styles';
 import { getMarkSetKey, RUN_BOUNDARY_MARK_EXCLUSIONS } from '../markKeys';
@@ -341,7 +340,7 @@ function paragraphFormattingToAttrs(
     attrs.tabs = formatting?.tabs ?? stylePpr?.tabs;
 
     // Page break control
-    attrs.pageBreakBefore = formatting?.pageBreakBefore ?? stylePpr?.pageBreakBefore;
+    assignPageBreakBefore(attrs, paragraph, stylePpr?.pageBreakBefore);
     attrs.keepNext = formatting?.keepNext ?? stylePpr?.keepNext;
     attrs.keepLines = formatting?.keepLines ?? stylePpr?.keepLines;
     attrs.contextualSpacing = formatting?.contextualSpacing ?? stylePpr?.contextualSpacing;
@@ -395,7 +394,7 @@ function paragraphFormattingToAttrs(
     attrs.tabs = formatting?.tabs;
 
     // Page break control
-    attrs.pageBreakBefore = formatting?.pageBreakBefore;
+    assignPageBreakBefore(attrs, paragraph, undefined);
     attrs.keepNext = formatting?.keepNext;
     attrs.keepLines = formatting?.keepLines;
 
@@ -419,9 +418,6 @@ function paragraphFormattingToAttrs(
   }
   if (paragraph.renderedPageBreakBefore) {
     attrs.renderedPageBreakBefore = true;
-  }
-  if (paragraphStartsWithPageBreak(paragraph)) {
-    attrs.pageBreakBefore = true;
   }
 
   // Paragraph-mark tracked-change attrs (w:pPr/w:rPr/w:ins, w:del).
@@ -507,111 +503,4 @@ function paragraphMarkFormatting(
       ? styleResolver.getRunStyleOwnProperties(styleId)
       : undefined;
   return mergeTextFormatting(characterStyle, mark);
-}
-
-type ParagraphContentToken = 'pageBreak' | 'visible';
-
-function isVisibleRunContent(content: RunContent): boolean {
-  if (content.type === 'text') return content.text.length > 0;
-  return true;
-}
-
-function collectRunContentTokens(contents: RunContent[], tokens: ParagraphContentToken[]): void {
-  for (const content of contents) {
-    if (content.type === 'break' && content.breakType === 'page') {
-      tokens.push('pageBreak');
-    } else if (isVisibleRunContent(content)) {
-      tokens.push('visible');
-    }
-  }
-}
-
-function collectRunOrHyperlinkTokens(
-  items: readonly (Run | Hyperlink)[],
-  tokens: ParagraphContentToken[]
-): void {
-  for (const item of items) {
-    if (item.type === 'run') {
-      collectRunContentTokens(item.content, tokens);
-    } else {
-      collectRunOrHyperlinkTokens(
-        item.children.filter((child): child is Run => child.type === 'run'),
-        tokens
-      );
-    }
-  }
-}
-
-function collectParagraphContentTokens(
-  items: readonly Paragraph['content'][number][],
-  tokens: ParagraphContentToken[]
-): void {
-  for (const item of items) {
-    switch (item.type) {
-      case 'run':
-        collectRunContentTokens(item.content, tokens);
-        break;
-      case 'hyperlink':
-        collectRunOrHyperlinkTokens(
-          item.children.filter((child): child is Run => child.type === 'run'),
-          tokens
-        );
-        break;
-      case 'simpleField':
-        collectRunOrHyperlinkTokens(item.content, tokens);
-        break;
-      case 'complexField':
-        collectRunOrHyperlinkTokens([...item.fieldCode, ...item.fieldResult], tokens);
-        break;
-      case 'inlineSdt':
-        collectParagraphContentTokens(item.content as Paragraph['content'], tokens);
-        break;
-      case 'insertion':
-      case 'deletion':
-      case 'moveFrom':
-      case 'moveTo':
-        collectRunOrHyperlinkTokens(item.content, tokens);
-        break;
-      case 'mathEquation':
-        tokens.push('visible');
-        break;
-    }
-  }
-}
-
-function paragraphContentTokens(paragraph: Paragraph): ParagraphContentToken[] {
-  const tokens: ParagraphContentToken[] = [];
-  collectParagraphContentTokens(paragraph.content, tokens);
-  return tokens;
-}
-
-export function paragraphStartsWithPageBreak(paragraph: Paragraph): boolean {
-  return paragraphContentTokens(paragraph)[0] === 'pageBreak';
-}
-
-/**
- * Returns true when `<w:br w:type="page"/>` appears after the leading
- * position in a paragraph.
- *
- * A leading hard page break can be represented as `pageBreakBefore` on the
- * same paragraph, preserving the DOCX paragraph count through the PM round
- * trip. Later hard breaks still need a standalone PM `pageBreak` block so
- * layout keeps forcing a page boundary.
- */
-export function paragraphHasNonLeadingPageBreak(paragraph: Paragraph): boolean {
-  let consumedLeadingPageBreak = false;
-  let sawVisibleContent = false;
-
-  for (const token of paragraphContentTokens(paragraph)) {
-    if (token === 'pageBreak') {
-      if (sawVisibleContent || consumedLeadingPageBreak) {
-        return true;
-      }
-      consumedLeadingPageBreak = true;
-    } else {
-      sawVisibleContent = true;
-    }
-  }
-
-  return false;
 }

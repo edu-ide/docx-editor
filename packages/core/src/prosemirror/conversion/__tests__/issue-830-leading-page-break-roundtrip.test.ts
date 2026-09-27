@@ -39,6 +39,7 @@ describe('issue #830 leading hard page break round-trip', () => {
     const pmDoc = toProseDoc(input);
     expect(childTypes(pmDoc)).toEqual(['paragraph', 'paragraph']);
     expect(pmDoc.child(1).attrs.pageBreakBefore).toBe(true);
+    expect(pmDoc.child(1).attrs.pageBreakBeforeSource).toBe('leadingBreak');
     expect(pmDoc.child(1).attrs.renderedPageBreakBefore).toBe(true);
 
     const roundTripped = fromProseDoc(pmDoc, input);
@@ -50,14 +51,13 @@ describe('issue #830 leading hard page break round-trip', () => {
       throw new Error('Expected second body block to remain a paragraph');
     }
 
+    // The break goes back as the run it was, not as a `w:pageBreakBefore`
+    // property, and the lastRenderedPageBreak marker stays on the line after it.
     const xml = serializeParagraph(outputParagraph);
-    expect(xml).toContain('<w:pageBreakBefore/>');
-    // The lastRenderedPageBreak marker survives and the text survives. The
-    // marker may ride its own run rather than the text run, since run-boundary
-    // preservation keeps the empty leading-break run distinct; both layouts are
-    // valid OOXML (Word itself commonly emits the marker on a standalone run).
-    expect(xml).toMatch(/<w:r[^>]*><w:lastRenderedPageBreak\/>/);
-    expect(xml).toContain('<w:t>After hard break</w:t>');
+    expect(xml).not.toContain('<w:pageBreakBefore');
+    expect(xml).toContain(
+      '<w:r><w:br w:type="page"/></w:r><w:r><w:lastRenderedPageBreak/><w:t>After hard break</w:t></w:r>'
+    );
   });
 
   test('preserves a break-only paragraph with no direct formatting', () => {
@@ -77,8 +77,7 @@ describe('issue #830 leading hard page break round-trip', () => {
       throw new Error('Expected body block to remain a paragraph');
     }
 
-    const xml = serializeParagraph(outputParagraph);
-    expect(xml).toContain('<w:pageBreakBefore/>');
+    expect(serializeParagraph(outputParagraph)).toBe('<w:p><w:r><w:br w:type="page"/></w:r></w:p>');
   });
 
   test('keeps non-leading hard page breaks as explicit PM page break blocks', () => {

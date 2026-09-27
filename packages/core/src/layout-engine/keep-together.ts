@@ -34,9 +34,16 @@ export type KeepNextChain = {
  * followed by an anchor paragraph (the first non-keepNext paragraph).
  * The entire chain must stay on the same page as the anchor's first line.
  *
+ * `breaksBefore` says whether the block at an index starts a new page for its
+ * own `pageBreakBefore`. The layout passes its own answer, under which an empty
+ * section mark after its section's content does not (`pageBreaksBefore`).
+ *
  * Returns a map from chain start index to chain info.
  */
-export function computeKeepNextChains(blocks: FlowBlock[]): Map<number, KeepNextChain> {
+export function computeKeepNextChains(
+  blocks: FlowBlock[],
+  breaksBefore: (index: number) => boolean = (index) => hasPageBreakBefore(blocks[index])
+): Map<number, KeepNextChain> {
   const chains = new Map<number, KeepNextChain>();
   const processed = new Set<number>();
 
@@ -62,11 +69,7 @@ export function computeKeepNextChains(blocks: FlowBlock[]): Map<number, KeepNext
 
       // A forced break ends the keep group: what follows starts on another page or
       // column, so a member or anchor past it would strand the chain on a page alone.
-      if (
-        nextBlock.kind === 'pageBreak' ||
-        nextBlock.kind === 'columnBreak' ||
-        hasPageBreakBefore(nextBlock)
-      ) {
+      if (nextBlock.kind === 'pageBreak' || nextBlock.kind === 'columnBreak' || breaksBefore(j)) {
         endsAtBreak = true;
         break;
       }

@@ -544,9 +544,9 @@ function applyPriorParagraphFormattingToAttrs(
     'numPr',
   ];
   for (const f of fields) {
-    if (Object.prototype.hasOwnProperty.call(prior, f)) {
-      next[f as string] = prior[f] ?? null;
-    }
+    if (!Object.prototype.hasOwnProperty.call(prior, f)) continue;
+    next[f as string] = prior[f] ?? null;
+    if (f === 'pageBreakBefore') next.pageBreakBeforeSource = 'direct';
   }
   // Numbering added by the change must be removed on reject. When `prior` has
   // no `numPr` the loop above leaves the current numbering in place — correct

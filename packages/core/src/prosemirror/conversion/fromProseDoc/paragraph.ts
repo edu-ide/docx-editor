@@ -38,6 +38,7 @@ import {
   createImageRun,
   createShapeRun,
 } from './runs';
+import { restorePageBreaks, statedPageBreakBefore } from './pageBreaks';
 
 /**
  * Convert a ProseMirror paragraph node to our Paragraph type
@@ -80,12 +81,7 @@ export function convertPMParagraph(node: PMNode): Paragraph {
     formatting: paragraphAttrsToFormatting(attrs),
     content,
   };
-
-  // Preserve `<w:lastRenderedPageBreak/>` so a save+reload doesn't silently
-  // drop the break Word recorded for paginating this paragraph.
-  if (attrs.renderedPageBreakBefore) {
-    paragraph.renderedPageBreakBefore = true;
-  }
+  restorePageBreaks(paragraph, attrs);
 
   // Round-trip paragraph-mark tracked-change attrs.
   if (attrs.pPrIns) {
@@ -527,9 +523,7 @@ function paragraphAttrsToFormatting(attrs: ParagraphAttrs): ParagraphFormatting 
     if (attrs.styleId !== (orig.styleId || undefined)) {
       result.styleId = attrs.styleId || undefined;
     }
-    if (attrs.pageBreakBefore !== (orig.pageBreakBefore || undefined)) {
-      result.pageBreakBefore = attrs.pageBreakBefore || undefined;
-    }
+    result.pageBreakBefore = statedPageBreakBefore(attrs, orig.pageBreakBefore);
     if (attrs.bidi !== (orig.bidi || undefined)) {
       result.bidi = attrs.bidi || undefined;
     }
@@ -554,7 +548,7 @@ function paragraphAttrsToFormatting(attrs: ParagraphAttrs): ParagraphFormatting 
     attrs.tabs ||
     attrs.outlineLevel != null ||
     attrs.contextualSpacing ||
-    attrs.pageBreakBefore ||
+    statedPageBreakBefore(attrs, undefined) !== undefined ||
     attrs.bidi;
 
   if (!hasFormatting) {
@@ -578,7 +572,7 @@ function paragraphAttrsToFormatting(attrs: ParagraphAttrs): ParagraphFormatting 
     tabs: attrs.tabs || undefined,
     outlineLevel: attrs.outlineLevel ?? undefined,
     contextualSpacing: attrs.contextualSpacing || undefined,
-    pageBreakBefore: attrs.pageBreakBefore || undefined,
+    pageBreakBefore: statedPageBreakBefore(attrs, undefined),
     bidi: attrs.bidi || undefined,
   };
 }

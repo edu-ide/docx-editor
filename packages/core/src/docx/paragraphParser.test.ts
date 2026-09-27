@@ -132,13 +132,25 @@ describe('parseParagraph rendered page break markers', () => {
     expect(paragraph.renderedPageBreakBefore).toBe(true);
   });
 
-  test('marks a paragraph when a page break appears before visible text', () => {
+  test('does not mark a paragraph for a hard page break before its text', () => {
+    // The break is content the paragraph keeps as a run, not Word's rendered marker.
     const paragraph = parseParagraphXml(`
       <w:p xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
         <w:r>
           <w:br w:type="page"/>
           <w:t>After hard break</w:t>
         </w:r>
+      </w:p>
+    `);
+
+    expect(paragraph.renderedPageBreakBefore).toBeUndefined();
+  });
+
+  test('marks the rendered page break Word records after an opening hard page break', () => {
+    const paragraph = parseParagraphXml(`
+      <w:p xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+        <w:r><w:br w:type="page"/></w:r>
+        <w:r><w:lastRenderedPageBreak/><w:t>After hard break</w:t></w:r>
       </w:p>
     `);
 

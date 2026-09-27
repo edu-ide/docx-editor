@@ -211,14 +211,14 @@ function convertParagraphAttrs(
     }));
   }
 
-  // Page break control. `renderedPageBreakBefore` (Word's
-  // `<w:lastRenderedPageBreak/>` marker) is informational — it records where
-  // Word last broke the page. ECMA-376 §17.4.16 does NOT specify it as a
-  // forced break, and Word does not honor it as one on reflow. Preserve the
-  // attr through round-trip so the marker is re-emitted on save, but do not
-  // act on it during layout.
+  // Page break control. `renderedPageBreakBefore` (Word's `<w:lastRenderedPageBreak/>` marker)
+  // is informational — it records where Word last broke the page. ECMA-376 §17.4.16 does NOT
+  // specify it as a forced break, and Word does not honor it as one on reflow. Preserve the attr
+  // through round-trip so the marker is re-emitted on save, but do not act on it during layout.
+  // The source of `pageBreakBefore` tells a paragraph property from an opening page-break run.
   if (pmAttrs.pageBreakBefore) {
     attrs.pageBreakBefore = true;
+    if (pmAttrs.pageBreakBeforeSource) attrs.pageBreakBeforeSource = pmAttrs.pageBreakBeforeSource;
   }
   if (pmAttrs.keepNext) {
     attrs.keepNext = true;

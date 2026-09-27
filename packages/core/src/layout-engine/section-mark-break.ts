@@ -10,9 +10,13 @@
  * when the next section opens a sheet anyway: the section break alone moves on.
  * Mark-only continuous sections in between change nothing, so the question
  * passes through them; a continuing section with content keeps the break.
+ *
+ * An empty section mark after its section's content also lets go of its own
+ * page break before (upstream 9afb832b, #983); see `pageBreaksBefore`.
  */
 
 import type { SectionLayoutConfig } from './index';
+import { hasPageBreakBefore } from './keep-together';
 import type { Paginator } from './paginator';
 import { getParagraphFragmentPmRange } from './paragraphFragmentRange';
 import type {
@@ -91,6 +95,39 @@ export function findBreakSheetJoins(
     }
   });
   return { breaks, marks };
+}
+
+/** A paragraph with nothing in it but its mark: no text, tab, picture, field, or break. */
+function holdsOnlyItsMark(block: ParagraphBlock): boolean {
+  return block.runs.every((run) => run.kind === 'text' && run.text.length === 0);
+}
+
+/**
+ * Whether the block at an index starts a new page for its own `pageBreakBefore`.
+ *
+ * An empty section mark that follows content in its own section does not (upstream
+ * 9afb832b, #983): it ends the section on the sheet that content reached, and the next
+ * section's start type alone decides where that section begins. What it lets go is a
+ * paragraph property, the mark's own `w:pageBreakBefore` or its style's; numbering,
+ * borders, and shading do not give the mark content. A mark that is its section's only
+ * block is that section's content and still breaks. So does a mark that opens with a
+ * page-break run (content, folded into `pageBreakBefore`), and one whose break has no
+ * recorded source: a paragraph from before `pageBreakBeforeSource` breaks as it did.
+ */
+export function pageBreaksBefore(
+  blocks: FlowBlock[],
+  breakIndices: number[]
+): (index: number) => boolean {
+  const kept = new Set<number>();
+  breakIndices.forEach((sectionBreak, k) => {
+    const mark = sectionBreak - 1;
+    const block = blocks[mark];
+    const sectionStart = k === 0 ? 0 : breakIndices[k - 1] + 1;
+    if (mark <= sectionStart || block?.kind !== 'paragraph' || !holdsOnlyItsMark(block)) return;
+    const source = block.attrs?.pageBreakBeforeSource;
+    if (source === 'direct' || source === 'style') kept.add(mark);
+  });
+  return (index) => hasPageBreakBefore(blocks[index]) && !kept.has(index);
 }
 
 /**

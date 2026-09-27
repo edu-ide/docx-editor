@@ -34,18 +34,13 @@ import type {
 import { assertExhaustiveFlowBlock } from './types';
 
 import { createPaginator } from './paginator';
-import {
-  computeKeepNextChains,
-  calculateChainHeight,
-  getMidChainIndices,
-  hasPageBreakBefore,
-} from './keep-together';
+import { computeKeepNextChains, calculateChainHeight, getMidChainIndices } from './keep-together';
 import { isFloatingTextBoxBlock } from './textBoxFlow';
 import { buildTableRowBreakInfo, prepareUnsplitRow, snapRowBreak } from './tableRowBreak';
 import { MIN_WRAP_SEGMENT_WIDTH } from '../layout-bridge/measuring/floatingZones';
 import { getParagraphFragmentPmRange } from './paragraphFragmentRange';
 import { balanceTerminalContinuousTextColumns } from './columnBalancing';
-import { findBreakSheetJoins, placeJoinedMark } from './section-mark-break';
+import { findBreakSheetJoins, pageBreaksBefore, placeJoinedMark } from './section-mark-break';
 import { getSpacingAfter, getSpacingBefore } from './paragraphSpacing';
 
 // Default page size (US Letter in pixels at 96 DPI)
@@ -244,8 +239,9 @@ export function layoutDocument(
   // the same styleId (OOXML spec 17.3.1.9 / ECMA-376 §17.3.1.9).
   applyContextualSpacing(blocks);
 
-  // Pre-compute keepNext chains for pagination decisions
-  const keepNextChains = computeKeepNextChains(blocks);
+  // Pre-compute keepNext chains for pagination decisions, over the flow's page breaks before
+  const breaksBefore = pageBreaksBefore(blocks, breakIndices);
+  const keepNextChains = computeKeepNextChains(blocks, breaksBefore);
   const midChainIndices = getMidChainIndices(keepNextChains);
   // A page break + empty section mark before a sheet-opening section: one sheet, not two.
   const joins = findBreakSheetJoins(blocks, breakIndices, sectionBreakTypes, sectionConfigs);
@@ -256,8 +252,7 @@ export function layoutDocument(
     const block = blocks[i];
     const measure = measures[i];
 
-    // Handle pageBreakBefore on paragraphs
-    if (hasPageBreakBefore(block) && !joins.breaks.has(i) && !joins.marks.has(i)) {
+    if (breaksBefore(i) && !joins.breaks.has(i) && !joins.marks.has(i)) {
       paginator.forcePageBreak();
     }
 

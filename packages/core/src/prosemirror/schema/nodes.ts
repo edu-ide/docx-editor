@@ -125,11 +125,9 @@ export interface ParagraphAttrs {
 
   // Page break control
   pageBreakBefore?: boolean;
-  /**
-   * Word's cached layout marker (`<w:lastRenderedPageBreak/>`). Treated like
-   * `pageBreakBefore` for layout, kept as a separate attr so save+reload
-   * preserves the marker at the same position Word recorded.
-   */
+  /** Where `pageBreakBefore` comes from; null when unknown. See toProseDoc/pageBreaks.ts. */
+  pageBreakBeforeSource?: 'direct' | 'style' | 'leadingBreak';
+  /** Word's cached layout marker (`<w:lastRenderedPageBreak/>`): saved back, not laid out. */
   renderedPageBreakBefore?: boolean;
   keepNext?: boolean;
   keepLines?: boolean;

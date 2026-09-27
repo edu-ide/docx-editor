@@ -39,6 +39,8 @@ export function paragraphAttrsFromResolvedStyle(
     keepNext: ppr?.keepNext ?? null,
     keepLines: ppr?.keepLines ?? null,
     pageBreakBefore: ppr?.pageBreakBefore ?? null,
+    // The break is the style's, so a save leaves it to the style.
+    pageBreakBeforeSource: ppr?.pageBreakBefore != null ? 'style' : null,
     outlineLevel: ppr?.outlineLevel ?? null,
     // The style's run defaults drive the caret height in an empty paragraph
     // and the formatting typed text inherits (see EmptyParagraphFormatExtension).

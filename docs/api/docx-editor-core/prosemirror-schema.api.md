@@ -190,6 +190,7 @@ export interface ParagraphAttrs {
     outlineLevel?: number;
     // (undocumented)
     pageBreakBefore?: boolean;
+    pageBreakBeforeSource?: 'direct' | 'style' | 'leadingBreak';
     // (undocumented)
     paraId?: string;
     pPrChange?: ParagraphPropertyChange[] | null;

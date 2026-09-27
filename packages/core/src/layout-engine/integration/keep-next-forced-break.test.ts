@@ -122,4 +122,12 @@ describe('computeKeepNextChains', () => {
     expect(chains.get(2)).toMatchObject({ memberIndices: [2], anchorIndex: 3 });
     expect(chains.get(2)?.endsAtBreak).toBeUndefined();
   });
+
+  test('a page break before that the layout lets go does not end the chain', () => {
+    // As for an empty section mark after its section's content (upstream 9afb832b, #983).
+    const { blocks } = lay([heading, { pageBreakBefore: true }]);
+    const chains = computeKeepNextChains(blocks, () => false);
+    expect(chains.get(0)).toMatchObject({ memberIndices: [0], anchorIndex: 1 });
+    expect(chains.get(0)?.endsAtBreak).toBeUndefined();
+  });
 });

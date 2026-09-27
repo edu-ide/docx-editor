@@ -75,7 +75,7 @@ export type ColumnLayout = {
 };
 
 // @public
-export function computeKeepNextChains(blocks: FlowBlock[]): Map<number, KeepNextChain>;
+export function computeKeepNextChains(blocks: FlowBlock[], breaksBefore?: (index: number) => boolean): Map<number, KeepNextChain>;
 
 // @public
 export function createInitialSectionState(margins: PageMargins, pageSize: {
@@ -517,6 +517,7 @@ export type ParagraphAttrs = {
     keepNext?: boolean;
     keepLines?: boolean;
     pageBreakBefore?: boolean;
+    pageBreakBeforeSource?: 'direct' | 'style' | 'leadingBreak';
     styleId?: string;
     contextualSpacing?: boolean;
     bidi?: boolean;

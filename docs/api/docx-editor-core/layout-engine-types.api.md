@@ -378,6 +378,7 @@ export type ParagraphAttrs = {
     keepNext?: boolean;
     keepLines?: boolean;
     pageBreakBefore?: boolean;
+    pageBreakBeforeSource?: 'direct' | 'style' | 'leadingBreak';
     styleId?: string;
     contextualSpacing?: boolean;
     bidi?: boolean;

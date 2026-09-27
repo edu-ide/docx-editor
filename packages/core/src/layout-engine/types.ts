@@ -301,9 +301,7 @@ export type ListNumPr = {
   ilvl?: number;
 };
 
-/**
- * Paragraph block attributes.
- */
+/** Paragraph block attributes. */
 export type ParagraphAttrs = {
   alignment?: 'left' | 'center' | 'right' | 'justify';
   spacing?: ParagraphSpacing;
@@ -313,6 +311,8 @@ export type ParagraphAttrs = {
   keepNext?: boolean;
   keepLines?: boolean;
   pageBreakBefore?: boolean;
+  /** Where `pageBreakBefore` comes from, when known (the paragraph attr of the same name). */
+  pageBreakBeforeSource?: 'direct' | 'style' | 'leadingBreak';
   styleId?: string;
   contextualSpacing?: boolean;
   /** Right-to-left paragraph direction */

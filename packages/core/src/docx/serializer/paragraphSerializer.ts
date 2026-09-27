@@ -334,35 +334,33 @@ export function serializeParagraph(paragraph: Paragraph): string {
   }
 
   // Add paragraph content. Marker injection (when `renderedPageBreakBefore`
-  // is set) is handled by `injectRenderedPageBreakIntoFirstRun` below.
-  let pendingRenderedPageBreak = !!paragraph.renderedPageBreakBefore;
-  for (const content of paragraph.content) {
-    let contentXml = serializeParagraphContent(content);
-    if (!contentXml) continue;
-    if (pendingRenderedPageBreak) {
-      const next = injectRenderedPageBreakIntoFirstRun(contentXml);
-      if (next) {
-        contentXml = next;
-        pendingRenderedPageBreak = false;
-      }
-    }
-    parts.push(contentXml);
-  }
+  // is set) is handled by `injectRenderedPageBreak` below.
+  const contentXml = paragraph.content.map((content) => serializeParagraphContent(content));
+  if (paragraph.renderedPageBreakBefore) injectRenderedPageBreak(contentXml, paragraph.content);
+  parts.push(...contentXml.filter(Boolean));
 
   return `<w:p${attrsStr}>${parts.join('')}</w:p>`;
 }
 
 /**
- * Insert `<w:lastRenderedPageBreak/>` after the first `<w:r ...>` opening
- * tag in `xml` (matches runs nested in hyperlink / sdt / ins / del /
- * moveFrom / moveTo / smartTag wrappers). Returns `null` when no `<w:r>`
- * is present so the caller can keep scanning later siblings. The lookahead
- * `(?=[\s>/])` skips `<w:rPr>` and any other prefix-collision tag.
+ * Insert `<w:lastRenderedPageBreak/>` after the opening tag of the run that
+ * starts the paragraph's first line (runs nested in hyperlink / sdt / ins /
+ * del / moveFrom / moveTo / smartTag wrappers count). That line starts after
+ * a page-break run the paragraph opens with; the break run takes the marker
+ * only when no run follows it. The lookahead `(?=[\s>/])` skips `<w:rPr>` and
+ * any other prefix-collision tag.
  */
-function injectRenderedPageBreakIntoFirstRun(xml: string): string | null {
-  const re = /<w:r(?=[\s>/])[^>]*>/;
-  if (!re.test(xml)) return null;
-  return xml.replace(re, (match) => `${match}<w:lastRenderedPageBreak/>`);
+function injectRenderedPageBreak(xml: string[], content: Paragraph['content']): void {
+  const run = /<w:r(?=[\s>/])[^>]*>/;
+  const [first, next] = xml.flatMap((part, index) => (run.test(part) ? [index] : []));
+  if (first === undefined) return;
+  const opening = content[first];
+  const breakOnly =
+    opening?.type === 'run' &&
+    opening.content.length > 0 &&
+    opening.content.every((item) => item.type === 'break' && item.breakType === 'page');
+  const target = breakOnly && next !== undefined ? next : first;
+  xml[target] = xml[target].replace(run, (match) => `${match}<w:lastRenderedPageBreak/>`);
 }
 
 /**

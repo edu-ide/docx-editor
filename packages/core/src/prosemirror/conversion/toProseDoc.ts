@@ -22,7 +22,7 @@ import { schema } from '../schema';
 import type { Document, BlockContent, StyleDefinitions, Theme } from '../../types/document';
 import { createStyleResolver, type StyleResolver } from '../styles';
 import { getDocumentWatermark } from '../../docx/watermarkApi';
-import { paragraphHasNonLeadingPageBreak } from './toProseDoc/paragraph';
+import { paragraphHasNonLeadingPageBreak } from './toProseDoc/pageBreaks';
 import { convertTable } from './toProseDoc/tables';
 import { convertParagraphWithTextBoxes } from './toProseDoc/textbox';
 import { sdtPropsToAttrs } from './sdtAttrs';

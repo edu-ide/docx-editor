@@ -93,8 +93,8 @@ function getLocalName(name: string | undefined): string {
  * smartTag, sdt, fldSimple, ins, del) looking for the first piece of visible
  * run content. Returns true when a `<w:lastRenderedPageBreak/>` precedes
  * that visible content — i.e. Word recorded a page break before this
- * paragraph. Also returns true on a leading hard `<w:br w:type="page"/>`
- * placed before any visible content.
+ * paragraph. A leading `<w:br w:type="page"/>` is content the paragraph keeps
+ * as a run, not that marker; Word records the marker on the line after it.
  */
 export function paragraphStartsWithRenderedPageBreak(node: XmlElement): boolean {
   // Wrappers that just contain runs at this layer; recurse into them.
@@ -153,7 +153,7 @@ export function paragraphStartsWithRenderedPageBreak(node: XmlElement): boolean 
     'dayLong',
   ]);
 
-  type Result = 'forced' | 'visible' | 'continue';
+  type Result = 'visible' | 'continue';
   let sawRenderedPageBreak = false;
 
   function visit(el: XmlElement): Result {
@@ -174,8 +174,9 @@ export function paragraphStartsWithRenderedPageBreak(node: XmlElement): boolean 
             continue;
           }
           if (runChildName === 'br' && getAttribute(runChild, 'w', 'type') === 'page') {
-            // A hard page break is itself a forced break — mark unconditionally.
-            return 'forced';
+            // The first line starts after an opening page break, unless the marker came first.
+            if (sawRenderedPageBreak) return 'visible';
+            continue;
           }
           if (visibleRunContent.has(runChildName)) {
             return 'visible';
@@ -198,10 +199,7 @@ export function paragraphStartsWithRenderedPageBreak(node: XmlElement): boolean 
     return 'continue';
   }
 
-  const outcome = visit(node);
-  if (outcome === 'forced') return true;
-  if (outcome === 'visible') return sawRenderedPageBreak;
-  return false;
+  return visit(node) === 'visible' && sawRenderedPageBreak;
 }
 
 // ============================================================================
