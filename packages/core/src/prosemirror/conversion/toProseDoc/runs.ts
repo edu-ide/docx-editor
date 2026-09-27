@@ -412,6 +412,8 @@ function convertImage(image: Image): PMNode {
     effectExtentRight,
     layoutInCell: image.layoutInCell,
     allowOverlap: image.allowOverlap,
+    // A line or rule's stroke, kept in EMUs for layout to paint and for fromProseDoc.
+    vectorShape: image.vectorShape,
   });
 }
 

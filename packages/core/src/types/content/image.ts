@@ -101,6 +101,23 @@ export interface ImageCrop {
 }
 
 /**
+ * A stroke-only DrawingML shape (`wps:wsp`) that a drawing paints in place of
+ * a picture: a straight line or connector drawn corner to corner, or an
+ * unfilled outlined rectangle flat enough to read as one horizontal rule.
+ * Read for rendering only; saving writes the drawing as it did before.
+ */
+export interface ImageVectorShape {
+  /** Preset geometry (`a:prstGeom@prst`). */
+  shapeType: 'line' | 'straightConnector1' | 'rect';
+  /** The stroke (`a:ln`, or the style's `a:lnRef`); width in EMUs. */
+  outline: ShapeOutline;
+  /** `a:xfrm@flipH`: flipped on one axis, a line runs between the other two corners. */
+  flipH?: boolean;
+  /** `a:xfrm@flipV` */
+  flipV?: boolean;
+}
+
+/**
  * Embedded image (`w:drawing` with an inline or anchored picture). Carries
  * the relationship-id pointer to the binary in `word/media/`, its
  * resolved data URL (`src`), display dimensions, optional crop /
@@ -160,6 +177,8 @@ export interface Image {
   hlinkHref?: string;
   /** Image outline/border */
   outline?: ShapeOutline;
+  /** Line or rule a `wps:wsp` drawing with no picture paints instead (see `ImageVectorShape`). */
+  vectorShape?: ImageVectorShape;
   /** Image effects */
   effects?: {
     brightness?: number;

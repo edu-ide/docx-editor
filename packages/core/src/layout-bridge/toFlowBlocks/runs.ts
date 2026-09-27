@@ -23,13 +23,14 @@ import type {
   FontSizeAttrs,
   FontFamilyAttrs,
 } from '../../prosemirror/schema/marks';
-import type { Theme } from '../../types/document';
+import type { ImageVectorShape, Theme } from '../../types/document';
 import { resolveColor, resolveHighlightToCss } from '../../utils/colorResolver';
 import { halfPointsToPixels, halfPointsToPoints } from '../../utils/units';
 import { mergeFontFamily } from '../../utils/fontFamilyMerge';
 import { resolveThemeFontRef } from '../../docx/themeParser';
 import { twipsToPixels, constrainImageToPage } from './shared';
 import type { ToFlowBlocksOptions } from './shared';
+import { vectorShapePicture } from './vectorShape';
 
 /**
  * Extract run formatting from ProseMirror marks.
@@ -445,19 +446,34 @@ export function paragraphToRuns(
       runs.push(run);
     } else if (child.type.name === 'image') {
       const attrs = child.attrs;
-      const constrained = constrainImageToPage(
-        (attrs.width as number) || 100,
-        (attrs.height as number) || 100,
-        _options.pageContentHeight
-      );
+      // A wps:wsp line or rule has no picture: it paints its stroke as an SVG,
+      // and an axis it has no extent on takes the stroke width, not 100px.
+      const vectorShape = attrs.vectorShape as ImageVectorShape | null;
+      const picture = vectorShape
+        ? vectorShapePicture(
+            vectorShape,
+            constrainImageToPage(
+              (attrs.width as number) || 0,
+              (attrs.height as number) || 0,
+              _options.pageContentHeight
+            )
+          )
+        : {
+            src: attrs.src as string,
+            ...constrainImageToPage(
+              (attrs.width as number) || 100,
+              (attrs.height as number) || 100,
+              _options.pageContentHeight
+            ),
+          };
       // Carry the image's tracked-change marks so an inserted/deleted picture
       // paints in the revision color and resolves with the rest of the change.
       const changeFmt = extractRunFormatting(child.marks, theme);
       const run: ImageRun = {
         kind: 'image',
-        src: attrs.src as string,
-        width: constrained.width,
-        height: constrained.height,
+        src: picture.src,
+        width: picture.width,
+        height: picture.height,
         alt: attrs.alt as string | undefined,
         transform: attrs.transform as string | undefined,
         wrapType: attrs.wrapType as string | undefined,

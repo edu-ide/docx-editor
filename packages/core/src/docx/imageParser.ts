@@ -47,6 +47,7 @@ import {
 import { resolveTarget } from './relsParser';
 import { sanitizeHref } from '../utils/sanitizeHref';
 import { isTextBoxDrawing } from './textBoxParser';
+import { parseVectorShape } from './vectorShapeParser';
 import { emuToPixels } from '../utils/units';
 import {
   parsePositionH,
@@ -509,6 +510,9 @@ function parseInline(
   const xfrm = findPictureTransform(inlineEl);
   const transform = parseTransform(xfrm);
 
+  // A wps:wsp line or rule has no picture and paints its stroke instead
+  const vectorShape = parseVectorShape(inlineEl, size);
+
   // Read distance attributes from wp:inline (OOXML spec: distT, distB, distL, distR)
   const distT = parseNumericAttribute(inlineEl, null, 'distT') ?? undefined;
   const distB = parseNumericAttribute(inlineEl, null, 'distB') ?? undefined;
@@ -540,6 +544,7 @@ function parseInline(
   if (transform) image.transform = transform;
   if (crop) image.crop = crop;
   if (opacity !== undefined) image.opacity = opacity;
+  if (vectorShape) image.vectorShape = vectorShape;
 
   // Resolve image hyperlink (a:hlinkClick)
   if (props.hlinkRId && rels) {
@@ -625,6 +630,9 @@ function parseAnchor(
   const xfrm = findPictureTransform(anchorEl);
   const transform = parseTransform(xfrm);
 
+  // A wps:wsp line or rule has no picture and paints its stroke instead
+  const vectorShape = parseVectorShape(anchorEl, size);
+
   const image: Image = {
     type: 'image',
     rId,
@@ -645,6 +653,7 @@ function parseAnchor(
   if (transform) image.transform = transform;
   if (crop) image.crop = crop;
   if (opacity !== undefined) image.opacity = opacity;
+  if (vectorShape) image.vectorShape = vectorShape;
   if (layoutInCell !== undefined) image.layoutInCell = layoutInCell;
   if (allowOverlap !== undefined) image.allowOverlap = allowOverlap;
 

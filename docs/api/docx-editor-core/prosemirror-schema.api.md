@@ -98,6 +98,7 @@ export interface ImageAttrs {
     // (undocumented)
     title?: string;
     transform?: string;
+    vectorShape?: ImageVectorShape;
     width?: number;
     wrapText?: string;
     wrapType?: WrapType;

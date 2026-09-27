@@ -802,6 +802,7 @@ interface Image_2 {
     transform?: ImageTransform;
     // (undocumented)
     type: 'image';
+    vectorShape?: ImageVectorShape;
     wrap: ImageWrap;
 }
 export { Image_2 as Image }

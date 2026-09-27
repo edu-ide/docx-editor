@@ -48,6 +48,7 @@ export type {
   ImageTransform,
   ImagePadding,
   ImageCrop,
+  ImageVectorShape,
   Image,
 } from './content/image';
 

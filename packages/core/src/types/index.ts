@@ -70,6 +70,7 @@ export type {
   ImageTransform,
   ImagePadding,
   ImageCrop,
+  ImageVectorShape,
   Image,
 
   // Shapes & Text Boxes

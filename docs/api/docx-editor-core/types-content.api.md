@@ -252,6 +252,7 @@ interface Image_2 {
     transform?: ImageTransform;
     // (undocumented)
     type: 'image';
+    vectorShape?: ImageVectorShape;
     wrap: ImageWrap;
 }
 export { Image_2 as Image }
@@ -305,6 +306,14 @@ export interface ImageTransform {
     flipH?: boolean;
     flipV?: boolean;
     rotation?: number;
+}
+
+// @public
+export interface ImageVectorShape {
+    flipH?: boolean;
+    flipV?: boolean;
+    outline: ShapeOutline;
+    shapeType: 'line' | 'straightConnector1' | 'rect';
 }
 
 // @public

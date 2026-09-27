@@ -371,6 +371,11 @@ export function createImageRun(node: PMNode): Run {
     if (Object.keys(padding).length > 0) image.padding = padding;
   }
 
+  // Keep a line or rule's stroke on the model; the serializer does not write it.
+  if (attrs.vectorShape) {
+    image.vectorShape = attrs.vectorShape;
+  }
+
   const drawingContent: DrawingContent = {
     type: 'drawing',
     image,

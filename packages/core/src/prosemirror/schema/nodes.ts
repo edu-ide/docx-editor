@@ -20,6 +20,7 @@ import type {
   TableCellFormatting,
   SectionProperties,
   RunPropertyChange,
+  ImageVectorShape,
 } from '../../types/document';
 import type { RevisionInfo } from '../../types/content/trackedChange';
 import type { FloatingTableProperties, TableLook } from '../../types';
@@ -305,6 +306,11 @@ export interface ImageAttrs {
   layoutInCell?: boolean;
   /** `wp:anchor allowOverlap`. Same tri-state convention as `layoutInCell`. */
   allowOverlap?: boolean;
+  /**
+   * Line or rule of a `wps:wsp` drawing with no picture, as parsed (EMUs).
+   * Layout paints it in place of `src`; saving does not write it.
+   */
+  vectorShape?: ImageVectorShape;
 }
 
 /**

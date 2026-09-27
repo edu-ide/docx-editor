@@ -439,11 +439,11 @@ export const wordFeatures: WordFeature[] = [
     name: 'Drawing shapes & geometry',
     category: 'images',
     editing: 'none',
-    rendering: 'none',
+    rendering: 'partial',
     roundTrip: 'partial',
     tier: 'community',
     notes:
-      'Round-trip but are not painted yet. Custom geometry is reduced to its bounding rectangle on save.',
+      'Straight lines, connectors and unfilled outlined rectangles used as horizontal rules paint their stroke when stored as plain drawings; arrowheads are not drawn and a theme-colored stroke paints black. The same shapes inside Word’s mc:AlternateContent wrapper, rotated lines and all other shapes round-trip but are not painted yet. Custom geometry is reduced to its bounding rectangle on save.',
   },
   {
     id: 'images.crop',
