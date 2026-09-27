@@ -60,8 +60,8 @@ function convert(runXml: string): { pmImage: PMNode; run: ImageRun } {
   const body = parseDocumentBody(
     `<w:document ${NS}><w:body><w:p>${runXml}<w:r><w:t>after</w:t></w:r></w:p></w:body></w:document>`
   );
-  const document: Document = { package: { document: body } };
-  const pmDoc = toProseDoc(document);
+  const doc: Document = { package: { document: body } };
+  const pmDoc = toProseDoc(doc);
   const pmImages: PMNode[] = [];
   pmDoc.descendants((node) => {
     if (node.type.name === 'image') pmImages.push(node);
@@ -110,7 +110,7 @@ describe('line drawings through PM and flow', () => {
     const svg = svgOf(run);
     expect(svg).toContain('stroke="#1F3864"');
     expect(lineAttr(svg, 'stroke-width')).toBeCloseTo(STROKE_1PT, 3);
-    // Centred on the zero axis, running the full length.
+    // Centered on the zero axis, running the full length.
     expect(lineAttr(svg, 'x1')).toBeCloseTo(STROKE_1PT / 2, 3);
     expect(lineAttr(svg, 'x2')).toBeCloseTo(STROKE_1PT / 2, 3);
     expect(lineAttr(svg, 'y1')).toBe(0);
@@ -196,10 +196,16 @@ describe('line drawings through PM and flow', () => {
     expect(svgOf(run)).not.toContain('stroke-dasharray');
   });
 
-  test('a stroke with no color of its own paints black, and a hairline paints 1px', () => {
-    const { run } = convert(inlineRun(914400, 0, shape('line', 914400, 0, '<a:ln w="0"/>')));
+  test('a theme-colored stroke paints black, as a text box outline does', () => {
+    const themed = '<a:ln w="12700"><a:solidFill><a:schemeClr val="accent1"/></a:solidFill></a:ln>';
+    const { run } = convert(inlineRun(914400, 0, shape('line', 914400, 0, themed)));
+    expect(svgOf(run)).toContain('stroke="#000000"');
+  });
+
+  test('a hairline (w="0") paints one pixel wide', () => {
+    const { run } = convert(inlineRun(914400, 0, shape('line', 914400, 0, stroke(0, 'C00000'))));
     const svg = svgOf(run);
-    expect(svg).toContain('stroke="#000000"');
+    expect(svg).toContain('stroke="#C00000"');
     expect(lineAttr(svg, 'stroke-width')).toBe(1);
     expect(run.height).toBe(1);
   });

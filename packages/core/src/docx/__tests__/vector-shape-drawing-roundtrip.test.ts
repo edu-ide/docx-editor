@@ -3,10 +3,16 @@
  * must write these drawings exactly as before. The fork saves a drawing
  * without a picture as a picture frame (the `wps:wsp` is not written back);
  * the vector shape must not add a stroke, flips or a new size to it, on the
- * headless path (model -> XML) or the editor path (model -> PM -> model -> XML).
+ * headless path (model -> XML), the editor path (model -> PM -> model -> XML)
+ * or a full repack of the e2e fixture.
  */
 import { describe, expect, test } from 'bun:test';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import JSZip from 'jszip';
 import { parseDocumentBody } from '../documentParser';
+import { parseDocx } from '../parser';
+import { repackDocx } from '../rezip';
 import { serializeDocument, serializeDocumentBody } from '../serializer/documentSerializer';
 import { fromProseDoc } from '../../prosemirror/conversion/fromProseDoc';
 import { toProseDoc } from '../../prosemirror/conversion/toProseDoc';
@@ -21,6 +27,17 @@ const NS = [
 const WPS_URI = 'http://schemas.microsoft.com/office/word/2010/wordprocessingShape';
 const A_NS = 'http://schemas.openxmlformats.org/drawingml/2006/main';
 const STROKE = '<a:ln w="12700"><a:solidFill><a:srgbClr val="1F3864"/></a:solidFill></a:ln>';
+const FIXTURE_PATH = join(
+  __dirname,
+  '..',
+  '..',
+  '..',
+  '..',
+  '..',
+  'e2e',
+  'fixtures',
+  'vector-lines-and-rules.docx'
+);
 
 function shape(
   prst: string,
@@ -72,34 +89,60 @@ const DRAWINGS = [
   anchor(15, 0, 1828800, '<wp:wrapNone/>', shape('line', 0, 1828800, STROKE, ' flipV="1"')),
 ];
 
-/** The picture frame the fork writes for a drawing it read without a picture. */
-function savedFrame(
-  id: number,
-  cx: number,
-  cy: number,
-  anchorWrap?: '<wp:wrapTopAndBottom/>' | '<wp:wrapNone/>'
-): string {
+const COLUMN_START =
+  '<wp:positionH relativeFrom="column"><wp:posOffset>0</wp:posOffset></wp:positionH>';
+const PARAGRAPH_TOP =
+  '<wp:positionV relativeFrom="paragraph"><wp:posOffset>0</wp:posOffset></wp:positionV>';
+
+/** A picture frame as the fork writes it for a drawing it read without a picture. */
+interface SavedFrame {
+  id: number;
+  cx: number;
+  cy: number;
+  /** `wp:docPr descr`, repeated on `pic:cNvPr`. */
+  descr?: string;
+  /** An anchored frame's side distance, `wp:positionH` and `wp:wrap*` element. */
+  anchor?: { distLR: number; positionH: string; wrap: string };
+}
+
+function savedFrame({ id, cx, cy, descr, anchor: anchored }: SavedFrame): string {
+  const alt = descr ? ` descr="${descr}"` : '';
   const extent = `<wp:extent cx="${cx}" cy="${cy}"/><wp:effectExtent l="0" t="0" r="0" b="0"/>`;
   const graphic =
-    `<wp:docPr id="${id}" name="Picture ${id}"/>` +
+    `<wp:docPr id="${id}" name="Picture ${id}"${alt}/>` +
     `<wp:cNvGraphicFramePr><a:graphicFrameLocks xmlns:a="${A_NS}" noChangeAspect="1"/></wp:cNvGraphicFramePr>` +
     `<a:graphic xmlns:a="${A_NS}"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">` +
     '<pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">' +
-    `<pic:nvPicPr><pic:cNvPr id="${id}" name="image${id}"/><pic:cNvPicPr/></pic:nvPicPr>` +
+    `<pic:nvPicPr><pic:cNvPr id="${id}" name="image${id}"${alt}/><pic:cNvPicPr/></pic:nvPicPr>` +
     '<pic:blipFill><a:blip r:embed="rId1"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>' +
     `<pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm>` +
     '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic>';
-  if (!anchorWrap) {
+  if (!anchored) {
     return `<w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0">${extent}${graphic}</wp:inline></w:drawing>`;
   }
   return (
-    '<w:drawing><wp:anchor distT="0" distB="0" distL="114300" distR="114300" simplePos="0" ' +
-    'relativeHeight="251658240" behindDoc="0" locked="0" layoutInCell="1" allowOverlap="1">' +
-    '<wp:simplePos x="0" y="0"/>' +
-    '<wp:positionH relativeFrom="column"><wp:posOffset>0</wp:posOffset></wp:positionH>' +
-    '<wp:positionV relativeFrom="paragraph"><wp:posOffset>0</wp:posOffset></wp:positionV>' +
-    `${extent}${anchorWrap}${graphic}</wp:anchor></w:drawing>`
+    `<w:drawing><wp:anchor distT="0" distB="0" distL="${anchored.distLR}" distR="${anchored.distLR}" ` +
+    'simplePos="0" relativeHeight="251658240" behindDoc="0" locked="0" layoutInCell="1" allowOverlap="1">' +
+    `<wp:simplePos x="0" y="0"/>${anchored.positionH}${PARAGRAPH_TOP}` +
+    `${extent}${anchored.wrap}${graphic}</wp:anchor></w:drawing>`
   );
+}
+
+/** The frames the synthetic DRAWINGS save as, under the given frame ids. */
+function savedDrawingFrames(ids: readonly number[]): string[] {
+  const inFlow = { distLR: 114300, positionH: COLUMN_START };
+  return [
+    savedFrame({ id: ids[0]!, cx: 0, cy: 914400 }),
+    savedFrame({ id: ids[1]!, cx: 914400, cy: 0 }),
+    savedFrame({ id: ids[2]!, cx: 914400, cy: 457200 }),
+    savedFrame({
+      id: ids[3]!,
+      cx: 5943600,
+      cy: 0,
+      anchor: { ...inFlow, wrap: '<wp:wrapTopAndBottom/>' },
+    }),
+    savedFrame({ id: ids[4]!, cx: 0, cy: 1828800, anchor: { ...inFlow, wrap: '<wp:wrapNone/>' } }),
+  ];
 }
 
 function parse(): Document {
@@ -127,25 +170,17 @@ function images(doc: Document): Image[] {
 
 describe('saving line and rule drawings is unchanged by vector painting', () => {
   test('the headless model -> XML path writes the same picture frames', () => {
-    expect(savedDrawings(serializeDocumentBody(parse().package.document))).toEqual([
-      savedFrame(11, 0, 914400),
-      savedFrame(12, 914400, 0),
-      savedFrame(13, 914400, 457200),
-      savedFrame(14, 5943600, 0, '<wp:wrapTopAndBottom/>'),
-      savedFrame(15, 0, 1828800, '<wp:wrapNone/>'),
-    ]);
+    expect(savedDrawings(serializeDocumentBody(parse().package.document))).toEqual(
+      savedDrawingFrames([11, 12, 13, 14, 15])
+    );
   });
 
   test('the editor path through ProseMirror writes the same picture frames', () => {
     const doc = parse();
     // fromProseDoc drops the docPr id, so the serializer numbers the frames itself.
-    expect(savedDrawings(serializeDocument(fromProseDoc(toProseDoc(doc), doc)))).toEqual([
-      savedFrame(100000, 0, 914400),
-      savedFrame(100001, 914400, 0),
-      savedFrame(100002, 914400, 457200),
-      savedFrame(100003, 5943600, 0, '<wp:wrapTopAndBottom/>'),
-      savedFrame(100004, 0, 1828800, '<wp:wrapNone/>'),
-    ]);
+    expect(savedDrawings(serializeDocument(fromProseDoc(toProseDoc(doc), doc)))).toEqual(
+      savedDrawingFrames([100000, 100001, 100002, 100003, 100004])
+    );
   });
 
   test('the vector shape survives the ProseMirror round-trip on the model', () => {
@@ -153,12 +188,43 @@ describe('saving line and rule drawings is unchanged by vector painting', () => 
     const before = images(doc).map((image) => image.vectorShape);
     const after = images(fromProseDoc(toProseDoc(doc), doc)).map((image) => image.vectorShape);
     expect(after).toEqual(before);
-    expect(before.map((shape) => shape?.shapeType)).toEqual([
+    expect(before.map((vectorShape) => vectorShape?.shapeType)).toEqual([
       'line',
       'line',
       'straightConnector1',
       'rect',
       'line',
+    ]);
+  });
+
+  test('a full repack of the e2e fixture writes the same picture frames', async () => {
+    const buffer = readFileSync(FIXTURE_PATH);
+    const doc = await parseDocx(
+      buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength),
+      { preloadFonts: false }
+    );
+    const zip = await JSZip.loadAsync(await repackDocx(doc, { updateModifiedDate: false }));
+    const xml = await zip.file('word/document.xml')!.async('text');
+    const pageAnchor = (offset: number) =>
+      `<wp:positionH relativeFrom="page"><wp:posOffset>${offset}</wp:posOffset></wp:positionH>`;
+    expect(savedDrawings(xml)).toEqual([
+      savedFrame({ id: 1, cx: 0, cy: 914400, descr: 'Vertical line' }),
+      savedFrame({ id: 2, cx: 1828800, cy: 0, descr: 'Horizontal line' }),
+      savedFrame({ id: 3, cx: 914400, cy: 457200, descr: 'Diagonal line' }),
+      savedFrame({
+        id: 4,
+        cx: 5943600,
+        cy: 0,
+        descr: 'Full-width rule',
+        anchor: { distLR: 0, positionH: COLUMN_START, wrap: '<wp:wrapTopAndBottom/>' },
+      }),
+      savedFrame({
+        id: 5,
+        cx: 0,
+        cy: 1371600,
+        descr: 'Margin connector',
+        anchor: { distLR: 0, positionH: pageAnchor(457200), wrap: '<wp:wrapNone/>' },
+      }),
     ]);
   });
 });

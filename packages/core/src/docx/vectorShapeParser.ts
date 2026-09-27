@@ -35,7 +35,7 @@ const MAX_LINE_WIDTH_EMU = 20116800;
  * - A rule is an unfilled `rect` with no text whose outline is its only ink
  *   and whose height is no more than the outline width, so its top and
  *   bottom edges paint as one horizontal band. The text column is not known
- *   while parsing, so a rule is recognised by that shape, not by spanning it.
+ *   while parsing, so a rule is recognized by that shape, not by spanning it.
  *
  * Everything else keeps the picture path and gets undefined: pictures, groups,
  * other presets and custom geometry, a rotated shape (rotation is not
