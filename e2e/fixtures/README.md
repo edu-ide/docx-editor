@@ -109,6 +109,15 @@ plain-text fallback cases. Used to verify that docx-editor paints the existing
 Word glyph in flow while exposing only unlocked/unbound controls as clickable
 editor widgets.
 
+### vector-lines-and-rules.docx
+
+A synthetic document with straight lines drawn as `wps:wsp` shapes (a
+zero-width vertical line, a zero-height horizontal line, a flipped diagonal
+line and a dashed straight connector in the page margin) and a full-width
+outlined rectangle with no fill anchored as a horizontal rule. Each drawing's
+`wp:docPr descr` names it. Used by `e2e/tests/vector-lines.spec.ts` to verify
+that each paints its stroke at its own size instead of an empty picture box.
+
 ## Generating Fixtures
 
 To regenerate fixtures, run:
@@ -122,6 +131,7 @@ bun scripts/create-empty-table-row-vmerge-fixture.mjs
 bun scripts/create-table-cell-selection-drag-fixture.mjs
 bun scripts/create-toc-hyperlink-fixture.mjs
 bun scripts/create-inline-checkbox-controls-fixture.mjs e2e/fixtures/inline-checkbox-controls.docx
+bun scripts/create-vector-lines-fixture.mjs
 ```
 
 Or manually create them using Microsoft Word or another DOCX editor.
