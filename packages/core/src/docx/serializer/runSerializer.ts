@@ -20,8 +20,6 @@ import type {
   NoteReferenceContent,
   FieldCharContent,
   InstrTextContent,
-  SoftHyphenContent,
-  NoBreakHyphenContent,
   TextFormatting,
   ColorValue,
   ShadingProperties,
@@ -526,20 +524,6 @@ function serializeInstrText(content: InstrTextContent): string {
   return `<w:instrText${spaceAttr}>${escapeXml(content.text)}</w:instrText>`;
 }
 
-/**
- * Serialize soft hyphen (w:softHyphen)
- */
-function serializeSoftHyphen(_content: SoftHyphenContent): string {
-  return '<w:softHyphen/>';
-}
-
-/**
- * Serialize non-breaking hyphen (w:noBreakHyphen)
- */
-function serializeNoBreakHyphen(_content: NoBreakHyphenContent): string {
-  return '<w:noBreakHyphen/>';
-}
-
 // DRAWING / IMAGE / SHAPE SERIALIZATION lives in ./runSerializer/drawing.ts.
 // serializeDrawingContent and serializeShapeContent are imported above and
 // dispatched from serializeRunContent.
@@ -573,13 +557,16 @@ function serializeRunContent(content: RunContent): string {
     case 'instrText':
       return serializeInstrText(content);
     case 'softHyphen':
-      return serializeSoftHyphen(content);
+      return '<w:softHyphen/>';
     case 'noBreakHyphen':
-      return serializeNoBreakHyphen(content);
+      return '<w:noBreakHyphen/>';
     case 'drawing':
       return serializeDrawingContent(content);
     case 'shape':
       return serializeShapeContent(content);
+    case 'preservedXml':
+      // Content the editor does not model is written back as it was parsed.
+      return content.xml;
     default:
       return '';
   }

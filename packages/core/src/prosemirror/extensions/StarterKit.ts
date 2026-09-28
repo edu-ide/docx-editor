@@ -57,6 +57,7 @@ import { FieldExtension } from './nodes/FieldExtension';
 import { SdtExtension } from './nodes/SdtExtension';
 import { BlockSdtExtension } from './nodes/BlockSdtExtension';
 import { MathExtension } from './nodes/MathExtension';
+import { PreservedXmlExtension } from './nodes/PreservedXmlExtension';
 import { createTableExtensions } from './nodes/TableExtension';
 
 // Features
@@ -153,6 +154,7 @@ export function createStarterKit(options: StarterKitOptions = {}): AnyExtension[
   add('sdt', SdtExtension());
   add('blockSdt', BlockSdtExtension());
   add('math', MathExtension());
+  add('preservedXml', PreservedXmlExtension());
 
   // Table (5 extensions grouped)
   if (!disabled.has('table')) {

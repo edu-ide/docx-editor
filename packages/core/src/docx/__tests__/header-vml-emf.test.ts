@@ -5,7 +5,7 @@ import JSZip from 'jszip';
 import { parseDocx } from '../parser';
 import { repackDocx } from '../rezip';
 import { extractMetafileRaster, isMetafileMimeType } from '../metafileRaster';
-import type { DrawingContent, Run } from '../../types/content/run';
+import type { PreservedXmlContent, Run } from '../../types/content/run';
 import type { Paragraph } from '../../types/content/paragraph';
 
 // Synthetic fixture: first-page header (titlePg + headerReference type="first")
@@ -61,10 +61,14 @@ describe('parseDocx — first-page header with VML/EMF image', () => {
     expect(header).toBeDefined();
     expect(header!.type).toBe('header');
 
-    // first paragraph carries the logo as a DrawingContent referencing image1
+    // first paragraph keeps the embedded object as parsed (its OLE data survives a
+    // save) and shows its picture, image1, as the preview
     const para0 = header!.content[0] as Paragraph;
     const run0 = para0.content.find((c): c is Run => c.type === 'run')!;
-    const drawing = run0.content.find((c): c is DrawingContent => c.type === 'drawing')!;
+    const kept = run0.content.find((c): c is PreservedXmlContent => c.type === 'preservedXml')!;
+    expect(kept.xml.startsWith('<w:object')).toBe(true);
+    expect(kept.xml).toContain('<o:OLEObject');
+    const drawing = kept.preview!;
     expect(drawing.image.rId).toBe('rId1');
     expect(drawing.image.filename).toBe('image1.emf');
     // EMF was rewritten to a browser-renderable PNG data URL for display
@@ -104,8 +108,8 @@ describe('parseDocx — first-page header with VML/EMF image', () => {
     const header = doc.package.headers!.get('rId6')!;
     const para0 = header.content[0] as Paragraph;
     const run0 = para0.content.find((c): c is Run => c.type === 'run')!;
-    const drawing = run0.content.find((c): c is DrawingContent => c.type === 'drawing')!;
-    expect(drawing.image.src).toBe('data:image/png;base64,OVERRIDE');
+    const kept = run0.content.find((c): c is PreservedXmlContent => c.type === 'preservedXml')!;
+    expect(kept.preview!.image.src).toBe('data:image/png;base64,OVERRIDE');
   });
 
   test('default-type header (no titlePg) also populates', async () => {

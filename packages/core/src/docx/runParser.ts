@@ -55,8 +55,11 @@ import {
   type XmlElement,
 } from './xmlParser';
 import { resolveThemeFontRef } from './themeParser';
-import { parseImage } from './imageParser';
-import { parseVmlImageContent } from './vmlImageParser';
+import {
+  parseAlternateContentRunContent,
+  parseDrawingRunContent,
+  parseVmlRunContent,
+} from './preservedRunXml';
 
 /**
  * Parse color value from attributes
@@ -538,30 +541,6 @@ function parseInstrText(element: XmlElement): InstrTextContent {
 }
 
 /**
- * Parse drawing content (w:drawing)
- *
- * Uses imageParser to fully parse the drawing element including
- * image data resolution from relationships and media files.
- */
-function parseDrawingContent(
-  element: XmlElement,
-  rels: RelationshipMap | null,
-  media: Map<string, MediaFile> | null
-): DrawingContent | null {
-  // Use the full imageParser to parse the drawing
-  const image = parseImage(element, rels ?? undefined, media ?? undefined);
-
-  if (!image) {
-    return null;
-  }
-
-  return {
-    type: 'drawing',
-    image,
-  };
-}
-
-/**
  * Get the local name of an element (without namespace prefix)
  */
 function getLocalName(name: string | undefined): string {
@@ -636,25 +615,15 @@ function parseRunContents(
         break;
 
       case 'drawing':
-        // Drawing/image
-        const drawing = parseDrawingContent(child, rels, media);
-        if (drawing) {
-          contents.push(drawing);
-        }
+        // A picture, or a shape/chart the editor keeps as parsed (see preservedRunXml)
+        contents.push(...parseDrawingRunContent(child, rels, media));
         break;
 
       case 'pict':
-      case 'object': {
-        // Legacy VML pictures (e.g. header logos): <w:pict><v:shape>
-        // <v:imagedata r:id/></v:shape></w:pict>. Watermark shapes are left to
-        // extractWatermark. Non-image VML (text watermarks, drawn shapes) is
-        // still ignored here.
-        const vmlImage = parseVmlImageContent(child, rels, media);
-        if (vmlImage) {
-          contents.push(vmlImage);
-        }
+      case 'object':
+        // VML pictures (e.g. header logos) stay images; other VML is kept as parsed
+        contents.push(...parseVmlRunContent(child, rels, media));
         break;
-      }
 
       case 'rPr':
         // Run properties - already handled separately
@@ -669,23 +638,10 @@ function parseRunContents(
         contents.push({ type: 'break', breakType: 'textWrapping' } as BreakContent);
         break;
 
-      case 'AlternateContent': {
-        // mc:AlternateContent — prefer mc:Choice over mc:Fallback
-        const choiceEl = getChildElements(child).find((el) => getLocalName(el.name) === 'Choice');
-        const targetEl =
-          choiceEl ?? getChildElements(child).find((el) => getLocalName(el.name) === 'Fallback');
-        if (targetEl) {
-          for (const innerChild of getChildElements(targetEl)) {
-            const innerName = getLocalName(innerChild.name);
-            if (innerName === 'drawing') {
-              const innerDrawing = parseDrawingContent(innerChild, rels, media);
-              // Only include drawings that have actual image data (skip shapes/connectors)
-              if (innerDrawing?.image?.src) contents.push(innerDrawing);
-            }
-          }
-        }
+      case 'AlternateContent':
+        // Word's wrapper for shapes and pictures; mc:Choice is preferred over mc:Fallback
+        contents.push(...parseAlternateContentRunContent(child, rels, media));
         break;
-      }
 
       case 'footnoteRef':
         // The auto-number mark inside a footnote body (distinct from the

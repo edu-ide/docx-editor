@@ -1,10 +1,10 @@
 /**
- * Painting `wps:wsp` lines and rules (upstream #972) is render-only: saving
- * must write these drawings exactly as before. The fork saves a drawing
- * without a picture as a picture frame (the `wps:wsp` is not written back);
- * the vector shape must not add a stroke, flips or a new size to it, on the
- * headless path (model -> XML), the editor path (model -> PM -> model -> XML)
- * or a full repack of the e2e fixture.
+ * Line and rule drawings are kept as parsed, so saving writes them back as they
+ * were: the fork used to save a drawing without a picture as an empty picture
+ * frame, losing the `wps:wsp`. The headless path (model -> XML), the editor path
+ * (model -> PM -> model -> XML) and a full repack must all write the drawing
+ * itself; the painted line (the vector shape of its preview) survives the PM
+ * round-trip.
  */
 import { describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
@@ -89,62 +89,6 @@ const DRAWINGS = [
   anchor(15, 0, 1828800, '<wp:wrapNone/>', shape('line', 0, 1828800, STROKE, ' flipV="1"')),
 ];
 
-const COLUMN_START =
-  '<wp:positionH relativeFrom="column"><wp:posOffset>0</wp:posOffset></wp:positionH>';
-const PARAGRAPH_TOP =
-  '<wp:positionV relativeFrom="paragraph"><wp:posOffset>0</wp:posOffset></wp:positionV>';
-
-/** A picture frame as the fork writes it for a drawing it read without a picture. */
-interface SavedFrame {
-  id: number;
-  cx: number;
-  cy: number;
-  /** `wp:docPr descr`, repeated on `pic:cNvPr`. */
-  descr?: string;
-  /** An anchored frame's side distance, `wp:positionH` and `wp:wrap*` element. */
-  anchor?: { distLR: number; positionH: string; wrap: string };
-}
-
-function savedFrame({ id, cx, cy, descr, anchor: anchored }: SavedFrame): string {
-  const alt = descr ? ` descr="${descr}"` : '';
-  const extent = `<wp:extent cx="${cx}" cy="${cy}"/><wp:effectExtent l="0" t="0" r="0" b="0"/>`;
-  const graphic =
-    `<wp:docPr id="${id}" name="Picture ${id}"${alt}/>` +
-    `<wp:cNvGraphicFramePr><a:graphicFrameLocks xmlns:a="${A_NS}" noChangeAspect="1"/></wp:cNvGraphicFramePr>` +
-    `<a:graphic xmlns:a="${A_NS}"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">` +
-    '<pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">' +
-    `<pic:nvPicPr><pic:cNvPr id="${id}" name="image${id}"${alt}/><pic:cNvPicPr/></pic:nvPicPr>` +
-    '<pic:blipFill><a:blip r:embed="rId1"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>' +
-    `<pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm>` +
-    '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic>';
-  if (!anchored) {
-    return `<w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0">${extent}${graphic}</wp:inline></w:drawing>`;
-  }
-  return (
-    `<w:drawing><wp:anchor distT="0" distB="0" distL="${anchored.distLR}" distR="${anchored.distLR}" ` +
-    'simplePos="0" relativeHeight="251658240" behindDoc="0" locked="0" layoutInCell="1" allowOverlap="1">' +
-    `<wp:simplePos x="0" y="0"/>${anchored.positionH}${PARAGRAPH_TOP}` +
-    `${extent}${anchored.wrap}${graphic}</wp:anchor></w:drawing>`
-  );
-}
-
-/** The frames the synthetic DRAWINGS save as, under the given frame ids. */
-function savedDrawingFrames(ids: readonly number[]): string[] {
-  const inFlow = { distLR: 114300, positionH: COLUMN_START };
-  return [
-    savedFrame({ id: ids[0]!, cx: 0, cy: 914400 }),
-    savedFrame({ id: ids[1]!, cx: 914400, cy: 0 }),
-    savedFrame({ id: ids[2]!, cx: 914400, cy: 457200 }),
-    savedFrame({
-      id: ids[3]!,
-      cx: 5943600,
-      cy: 0,
-      anchor: { ...inFlow, wrap: '<wp:wrapTopAndBottom/>' },
-    }),
-    savedFrame({ id: ids[4]!, cx: 0, cy: 1828800, anchor: { ...inFlow, wrap: '<wp:wrapNone/>' } }),
-  ];
-}
-
 function parse(): Document {
   const body = parseDocumentBody(
     `<w:document ${NS}><w:body>${DRAWINGS.map(
@@ -155,38 +99,43 @@ function parse(): Document {
 }
 
 function savedDrawings(xml: string): string[] {
-  return xml.match(/<w:drawing>.*?<\/w:drawing>/g) ?? [];
+  return xml.match(/<w:drawing[\s>][\s\S]*?<\/w:drawing>/g) ?? [];
 }
 
-function images(doc: Document): Image[] {
+/** The painted image of each paragraph's drawing, kept as parsed with a preview. */
+function previews(doc: Document): Image[] {
   return doc.package.document.content.map((block) => {
     const run = (block as Paragraph).content[0];
-    if (run?.type !== 'run' || run.content[0]?.type !== 'drawing') {
-      throw new Error('expected a drawing run');
+    const kept = run?.type === 'run' ? run.content[0] : undefined;
+    if (kept?.type !== 'preservedXml' || !kept.preview) {
+      throw new Error('expected a drawing kept as parsed, with a preview');
     }
-    return run.content[0].image;
+    return kept.preview.image;
   });
 }
 
-describe('saving line and rule drawings is unchanged by vector painting', () => {
-  test('the headless model -> XML path writes the same picture frames', () => {
-    expect(savedDrawings(serializeDocumentBody(parse().package.document))).toEqual(
-      savedDrawingFrames([11, 12, 13, 14, 15])
-    );
+/**
+ * The drawings as a save writes them: as parsed, plus the `a:` declaration the
+ * test document gives on its root, which a repacked root does not carry.
+ */
+const WRITTEN = DRAWINGS.map((drawing) =>
+  drawing.replace('<w:drawing>', `<w:drawing xmlns:a="${A_NS}">`)
+);
+
+describe('saving writes line and rule drawings back as parsed', () => {
+  test('the headless model -> XML path writes each drawing as parsed', () => {
+    expect(savedDrawings(serializeDocumentBody(parse().package.document))).toEqual(WRITTEN);
   });
 
-  test('the editor path through ProseMirror writes the same picture frames', () => {
+  test('the editor path through ProseMirror writes each drawing as parsed', () => {
     const doc = parse();
-    // fromProseDoc drops the docPr id, so the serializer numbers the frames itself.
-    expect(savedDrawings(serializeDocument(fromProseDoc(toProseDoc(doc), doc)))).toEqual(
-      savedDrawingFrames([100000, 100001, 100002, 100003, 100004])
-    );
+    expect(savedDrawings(serializeDocument(fromProseDoc(toProseDoc(doc), doc)))).toEqual(WRITTEN);
   });
 
-  test('the vector shape survives the ProseMirror round-trip on the model', () => {
+  test('the painted line survives the ProseMirror round-trip on the model', () => {
     const doc = parse();
-    const before = images(doc).map((image) => image.vectorShape);
-    const after = images(fromProseDoc(toProseDoc(doc), doc)).map((image) => image.vectorShape);
+    const before = previews(doc).map((image) => image.vectorShape);
+    const after = previews(fromProseDoc(toProseDoc(doc), doc)).map((image) => image.vectorShape);
     expect(after).toEqual(before);
     expect(before.map((vectorShape) => vectorShape?.shapeType)).toEqual([
       'line',
@@ -197,34 +146,20 @@ describe('saving line and rule drawings is unchanged by vector painting', () => 
     ]);
   });
 
-  test('a full repack of the e2e fixture writes the same picture frames', async () => {
+  test('a full repack of the e2e fixture writes its drawings as parsed', async () => {
     const buffer = readFileSync(FIXTURE_PATH);
+    const original = await (await JSZip.loadAsync(buffer)).file('word/document.xml')!.async('text');
     const doc = await parseDocx(
       buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength),
       { preloadFonts: false }
     );
     const zip = await JSZip.loadAsync(await repackDocx(doc, { updateModifiedDate: false }));
     const xml = await zip.file('word/document.xml')!.async('text');
-    const pageAnchor = (offset: number) =>
-      `<wp:positionH relativeFrom="page"><wp:posOffset>${offset}</wp:posOffset></wp:positionH>`;
-    expect(savedDrawings(xml)).toEqual([
-      savedFrame({ id: 1, cx: 0, cy: 914400, descr: 'Vertical line' }),
-      savedFrame({ id: 2, cx: 1828800, cy: 0, descr: 'Horizontal line' }),
-      savedFrame({ id: 3, cx: 914400, cy: 457200, descr: 'Diagonal line' }),
-      savedFrame({
-        id: 4,
-        cx: 5943600,
-        cy: 0,
-        descr: 'Full-width rule',
-        anchor: { distLR: 0, positionH: COLUMN_START, wrap: '<wp:wrapTopAndBottom/>' },
-      }),
-      savedFrame({
-        id: 5,
-        cx: 0,
-        cy: 1371600,
-        descr: 'Margin connector',
-        anchor: { distLR: 0, positionH: pageAnchor(457200), wrap: '<wp:wrapNone/>' },
-      }),
-    ]);
+    // The fixture breaks some start tags across lines; XML does not keep the
+    // whitespace between attributes, so tags compare with it collapsed.
+    const tagSpaces = (drawing: string) =>
+      drawing.replace(/<[^>]+>/g, (tag) => tag.replace(/\s+/g, ' '));
+    expect(savedDrawings(original)).toHaveLength(5);
+    expect(savedDrawings(xml)).toEqual(savedDrawings(original).map(tagSpaces));
   });
 });

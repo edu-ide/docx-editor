@@ -1,8 +1,9 @@
 /**
- * A `wps:wsp` line or rule stays a PM `image` node and an `image` run, but the
- * run paints its stroke instead of an empty picture (upstream #972): the source
- * is an SVG of the line, and an axis with no extent takes the stroke width
- * instead of a phantom 100px.
+ * A `wps:wsp` line or rule is kept as parsed — a PM `preservedXml` atom, so a
+ * save writes the drawing back unchanged — and paints through its preview, an
+ * `image` run that draws its stroke instead of an empty picture (upstream #972):
+ * the source is an SVG of the line, and an axis with no extent takes the stroke
+ * width instead of a phantom 100px. A picture stays a PM `image` node.
  */
 import { describe, expect, test } from 'bun:test';
 import type { Node as PMNode } from 'prosemirror-model';
@@ -56,19 +57,28 @@ function topAndBottomRun(cx: number, cy: number, graphic: string): string {
   );
 }
 
-function convert(runXml: string): { pmImage: PMNode; run: ImageRun } {
+/** The painted node's kind, and the image attributes it paints with (a kept drawing's preview). */
+interface Painted {
+  kind: string;
+  attrs: PMNode['attrs'];
+}
+
+function convert(runXml: string): { pmImage: Painted; run: ImageRun } {
   const body = parseDocumentBody(
     `<w:document ${NS}><w:body><w:p>${runXml}<w:r><w:t>after</w:t></w:r></w:p></w:body></w:document>`
   );
   const doc: Document = { package: { document: body } };
   const pmDoc = toProseDoc(doc);
-  const pmImages: PMNode[] = [];
-  pmDoc.descendants((node) => {
-    if (node.type.name === 'image') pmImages.push(node);
+  const pmImages: Painted[] = [];
+  pmDoc.descendants((node: PMNode) => {
+    if (node.type.name === 'image') pmImages.push({ kind: 'image', attrs: node.attrs });
+    if (node.type.name === 'preservedXml') {
+      pmImages.push({ kind: 'preservedXml', attrs: node.attrs.preview });
+    }
     return true;
   });
   const pmImage = pmImages[0];
-  if (!pmImage) throw new Error('expected a PM image node');
+  if (!pmImage) throw new Error('expected a painted PM node');
   const paragraph = toFlowBlocks(pmDoc).find((b) => b.kind === 'paragraph') as ParagraphBlock;
   const run = paragraph.runs.find((r) => r.kind === 'image');
   if (!run || run.kind !== 'image') throw new Error('expected an image run');
@@ -89,12 +99,14 @@ function lineAttr(svg: string, name: string): number {
 }
 
 describe('line drawings through PM and flow', () => {
-  test('a vertical line stays an image node and run, stroke-wide instead of 100px', () => {
+  test('a vertical line is kept as parsed and paints stroke-wide instead of 100px', () => {
     const { pmImage, run } = convert(
       inlineRun(0, 914400, shape('line', 0, 914400, stroke(12700, '1F3864')))
     );
 
-    // PM keeps the drawing's own size (no width for a zero-width line) and the shape.
+    // PM keeps the drawing as parsed; its preview has the drawing's own size (no
+    // width for a zero-width line) and the shape.
+    expect(pmImage.kind).toBe('preservedXml');
     expect(pmImage.attrs.width).toBeNull();
     expect(pmImage.attrs.height).toBe(96);
     expect(pmImage.attrs.src).toBe('');
@@ -247,6 +259,7 @@ describe('line drawings through PM and flow', () => {
       '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic>' +
       '</a:graphicData></a:graphic></wp:inline></w:drawing></w:r>';
     const { pmImage, run } = convert(picture);
+    expect(pmImage.kind).toBe('image');
     expect(pmImage.attrs.vectorShape).toBeNull();
     expect(run.src).toBe('');
     expect([run.width, run.height]).toEqual([96, 48]);

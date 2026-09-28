@@ -494,6 +494,14 @@ export function pictureWatermarkDisplayEmu(naturalWidthPx: number, naturalHeight
 } | undefined;
 
 // @public
+export interface PreservedXmlContent {
+    preview?: DrawingContent;
+    // (undocumented)
+    type: 'preservedXml';
+    xml: string;
+}
+
+// @public
 export interface PropertyChangeInfo extends TrackedChangeInfo {
     rsid?: string;
 }
@@ -508,7 +516,7 @@ export interface Run {
 }
 
 // @public
-export type RunContent = TextContent | TabContent | BreakContent | SymbolContent | NoteReferenceContent | NoteRefMarkContent | SeparatorContent | FieldCharContent | InstrTextContent | SoftHyphenContent | NoBreakHyphenContent | DrawingContent | ShapeContent;
+export type RunContent = TextContent | TabContent | BreakContent | SymbolContent | NoteReferenceContent | NoteRefMarkContent | SeparatorContent | FieldCharContent | InstrTextContent | SoftHyphenContent | NoBreakHyphenContent | DrawingContent | ShapeContent | PreservedXmlContent;
 
 // @public
 export interface RunPropertyChange {

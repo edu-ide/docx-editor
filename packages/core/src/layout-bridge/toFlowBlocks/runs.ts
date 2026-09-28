@@ -7,14 +7,7 @@
  */
 
 import type { Node as PMNode, Mark } from 'prosemirror-model';
-import type {
-  Run,
-  TextRun,
-  TabRun,
-  ImageRun,
-  FieldRun,
-  RunFormatting,
-} from '../../layout-engine/types';
+import type { Run, TextRun, TabRun, FieldRun, RunFormatting } from '../../layout-engine/types';
 import type { InlineSdtWidget } from '../../layout-engine/inlineSdtWidgets';
 import type { ParagraphAttrs as PMParagraphAttrs } from '../../prosemirror/schema/nodes';
 import type {
@@ -23,14 +16,14 @@ import type {
   FontSizeAttrs,
   FontFamilyAttrs,
 } from '../../prosemirror/schema/marks';
-import type { ImageVectorShape, Theme } from '../../types/document';
+import type { Theme } from '../../types/document';
 import { resolveColor, resolveHighlightToCss } from '../../utils/colorResolver';
 import { halfPointsToPixels, halfPointsToPoints } from '../../utils/units';
 import { mergeFontFamily } from '../../utils/fontFamilyMerge';
 import { resolveThemeFontRef } from '../../docx/themeParser';
-import { twipsToPixels, constrainImageToPage } from './shared';
+import { twipsToPixels } from './shared';
 import type { ToFlowBlocksOptions } from './shared';
-import { vectorShapePicture } from './vectorShape';
+import { imageRunFor } from './imageRun';
 
 /**
  * Extract run formatting from ProseMirror marks.
@@ -445,59 +438,17 @@ export function paragraphToRuns(
       };
       runs.push(run);
     } else if (child.type.name === 'image') {
-      const attrs = child.attrs;
-      // A wps:wsp line or rule has no picture: it paints its stroke as an SVG,
-      // and an axis it has no extent on takes the stroke width, not 100px.
-      const vectorShape = attrs.vectorShape as ImageVectorShape | null;
-      const picture = vectorShape
-        ? vectorShapePicture(
-            vectorShape,
-            constrainImageToPage(
-              (attrs.width as number) || 0,
-              (attrs.height as number) || 0,
-              _options.pageContentHeight
-            )
-          )
-        : {
-            src: attrs.src as string,
-            ...constrainImageToPage(
-              (attrs.width as number) || 100,
-              (attrs.height as number) || 100,
-              _options.pageContentHeight
-            ),
-          };
-      // Carry the image's tracked-change marks so an inserted/deleted picture
-      // paints in the revision color and resolves with the rest of the change.
-      const changeFmt = extractRunFormatting(child.marks, theme);
-      const run: ImageRun = {
-        kind: 'image',
-        src: picture.src,
-        width: picture.width,
-        height: picture.height,
-        alt: attrs.alt as string | undefined,
-        transform: attrs.transform as string | undefined,
-        wrapType: attrs.wrapType as string | undefined,
-        displayMode: attrs.displayMode as 'inline' | 'block' | 'float' | undefined,
-        cssFloat: attrs.cssFloat as 'left' | 'right' | 'none' | undefined,
-        distTop: attrs.distTop as number | undefined,
-        distBottom: attrs.distBottom as number | undefined,
-        distLeft: attrs.distLeft as number | undefined,
-        distRight: attrs.distRight as number | undefined,
-        position: attrs.position as ImageRun['position'] | undefined,
-        cropTop: attrs.cropTop as number | undefined,
-        cropRight: attrs.cropRight as number | undefined,
-        cropBottom: attrs.cropBottom as number | undefined,
-        cropLeft: attrs.cropLeft as number | undefined,
-        opacity: attrs.opacity as number | undefined,
-        isInsertion: changeFmt.isInsertion,
-        isDeletion: changeFmt.isDeletion,
-        changeAuthor: changeFmt.changeAuthor,
-        changeDate: changeFmt.changeDate,
-        changeRevisionId: changeFmt.changeRevisionId,
-        pmStart: childPos,
-        pmEnd: childPos + child.nodeSize,
-      };
-      runs.push(run);
+      // Tracked-change marks paint an inserted/deleted picture in the revision color.
+      const change = extractRunFormatting(child.marks, theme);
+      const pmEnd = childPos + child.nodeSize;
+      runs.push(imageRunFor(child.attrs, change, _options.pageContentHeight, childPos, pmEnd));
+    } else if (child.type.name === 'preservedXml' && child.attrs.preview) {
+      // Content kept as parsed paints as its preview: a Word line or rule, or a frame.
+      const change = extractRunFormatting(child.marks, theme);
+      const pmEnd = childPos + child.nodeSize;
+      runs.push(
+        imageRunFor(child.attrs.preview, change, _options.pageContentHeight, childPos, pmEnd)
+      );
     } else if (child.type.name === 'field') {
       const ft = child.attrs.fieldType as string;
       const mappedType: FieldRun['fieldType'] =

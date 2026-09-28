@@ -35,9 +35,8 @@ import {
   createTabRun,
   createFieldFromNode,
   createMathFromNode,
-  createImageRun,
-  createShapeRun,
 } from './runs';
+import { STANDALONE_RUNS } from './standaloneRuns';
 import { restorePageBreaks, statedPageBreakBefore } from './pageBreaks';
 
 /**
@@ -637,10 +636,9 @@ function extractParagraphContent(paragraph: PMNode): ParagraphContent[] {
       // tracked picture/shape round-trips inside the `<w:ins>`/`<w:del>` wrapper
       // instead of collapsing to an empty run (the prior text-only path).
       let run: Run;
-      if (node.type.name === 'image') {
-        run = createImageRun(node);
-      } else if (node.type.name === 'shape') {
-        run = createShapeRun(node);
+      const standalone = STANDALONE_RUNS.get(node.type.name);
+      if (standalone) {
+        run = standalone(node);
       } else {
         // Filter out the tracked change mark for text formatting extraction
         const otherMarks = node.marks.filter(
@@ -742,22 +740,14 @@ function extractParagraphContent(paragraph: PMNode): ParagraphContent[] {
         currentMarksKey = null;
       }
       content.push(createBreakRun());
-    } else if (node.type.name === 'image') {
-      // Image ends current run
+    } else if (STANDALONE_RUNS.has(node.type.name)) {
+      // A picture, shape or content kept as parsed ends the current run
       if (currentRun) {
         content.push(currentRun);
         currentRun = null;
         currentMarksKey = null;
       }
-      content.push(createImageRun(node));
-    } else if (node.type.name === 'shape') {
-      // Shape ends current run
-      if (currentRun) {
-        content.push(currentRun);
-        currentRun = null;
-        currentMarksKey = null;
-      }
-      content.push(createShapeRun(node));
+      content.push(STANDALONE_RUNS.get(node.type.name)!(node));
     } else if (node.type.name === 'tab') {
       // Tab ends current run
       if (currentRun) {

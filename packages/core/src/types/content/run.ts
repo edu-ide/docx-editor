@@ -140,6 +140,21 @@ export interface ShapeContent {
 }
 
 /**
+ * Run content the editor cannot write back from its own model, kept as parsed
+ * so that saving writes it unchanged: a drawing without a picture (a Word shape,
+ * connector, group, chart or SmartArt), an `mc:AlternateContent` holding one,
+ * or a VML `w:pict` / `w:object` that is neither a picture nor a watermark.
+ * Pictures and text boxes are modelled and never kept this way.
+ */
+export interface PreservedXmlContent {
+  type: 'preservedXml';
+  /** The element as parsed: `w:drawing`, `mc:AlternateContent`, `w:pict` or `w:object` */
+  xml: string;
+  /** What the editor paints for it when it can, e.g. a line parsed as a picture-less image */
+  preview?: DrawingContent;
+}
+
+/**
  * All possible run content types
  */
 export type RunContent =
@@ -155,7 +170,8 @@ export type RunContent =
   | SoftHyphenContent
   | NoBreakHyphenContent
   | DrawingContent
-  | ShapeContent;
+  | ShapeContent
+  | PreservedXmlContent;
 
 /**
  * A run (`w:r`) — a contiguous span of inline content sharing one set of
