@@ -83,7 +83,11 @@ export default defineConfig([
       'utils/autoScroll': 'src/utils/autoScroll.ts',
     },
     format: ['cjs', 'esm'],
-    dts: true,
+    // Declarations are not built by tsup. `scripts/build-core-declarations.mjs` emits them
+    // after this build, within Node's default heap, which tsup's declaration bundler
+    // outgrew. Every `types` condition in package.json points at that one `.d.ts` graph,
+    // whichever runtime the consumer selects.
+    dts: false,
     splitting: true,
     sourcemap: false,
     clean: true,
@@ -108,7 +112,8 @@ export default defineConfig([
       'mcp-cli': 'src/mcp/cli.ts',
     },
     format: ['esm'],
-    dts: true,
+    // A bin: no subpath imports it, so it ships no declarations.
+    dts: false,
     splitting: false,
     sourcemap: false,
     clean: false,

@@ -39,9 +39,7 @@ function packPackage(packagePath) {
 
 try {
   if (process.env.SKIP_CONSUMER_INSTALL_BUILD !== '1') {
-    run('bun', ['run', 'build'], {
-      env: { NODE_OPTIONS: process.env.NODE_OPTIONS ?? '--max-old-space-size=8192' },
-    });
+    run('bun', ['run', 'build']);
   }
 
   mkdirSync(packDir, { recursive: true });

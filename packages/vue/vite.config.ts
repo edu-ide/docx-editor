@@ -2,6 +2,7 @@ import { defineConfig } from 'vite';
 import vue from '@vitejs/plugin-vue';
 import dts from 'vite-plugin-dts';
 import { resolve } from 'path';
+import { declarationCompilerOptions } from '../../scripts/declaration-options.mjs';
 
 // Library build for @eigenpal/docx-editor-vue. Vite (not tsup) because the
 // package ships .vue SFCs that need the @vitejs/plugin-vue compiler step.
@@ -27,8 +28,10 @@ export default defineConfig({
       // surface check since it would walk the source.
       pathsToAliases: false,
       // Don't ship `.d.ts.map`. Maps point at source `.ts` files that
-      // aren't in the published tarball, so they're dead weight.
-      compilerOptions: { declarationMap: false },
+      // aren't in the published tarball, so they're dead weight. The sibling
+      // packages come from their built declarations: see
+      // scripts/declaration-options.mjs.
+      compilerOptions: declarationCompilerOptions(import.meta.url, { declarationMap: false }),
     }),
   ],
   build: {

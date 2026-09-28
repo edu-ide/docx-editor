@@ -7,7 +7,7 @@
 import { AutoSaveStatus } from '@eigenpal/docx-editor-core/managers/types';
 import { CellCoordinates } from '@eigenpal/docx-editor-core/managers/types';
 import { ClipboardSelection } from '@eigenpal/docx-editor-core';
-import { CommandMap } from '@eigenpal/docx-editor-core/prosemirror/extensions/types';
+import { CommandMap } from '@eigenpal/docx-editor-core/prosemirror/extensions';
 import { Comment as Comment_2 } from '@eigenpal/docx-editor-core/types/content';
 import { ComputedRef } from 'vue';
 import { createSelectionFromDOM } from '@eigenpal/docx-editor-core';

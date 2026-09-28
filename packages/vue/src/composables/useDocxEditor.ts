@@ -44,7 +44,7 @@ import {
   ExtensionManager,
   createStarterKit,
 } from '@eigenpal/docx-editor-core/prosemirror/extensions';
-import type { CommandMap } from '@eigenpal/docx-editor-core/prosemirror/extensions/types';
+import type { CommandMap } from '@eigenpal/docx-editor-core/prosemirror/extensions';
 import {
   measureBlocksWithFloats,
   measureParagraph,

@@ -1,10 +1,12 @@
 import { describe, test, expect } from 'bun:test';
 import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { relative, resolve } from 'node:path';
+import { publishedEntries } from '../../../../scripts/build-core-declarations.mjs';
 
 const pkgRoot = resolve(import.meta.dir, '..', '..');
 const pkg = JSON.parse(readFileSync(resolve(pkgRoot, 'package.json'), 'utf8')) as {
   exports: Record<string, string | { types?: string; import?: string; require?: string }>;
+  scripts: Record<string, string>;
 };
 const tsupConfig = readFileSync(resolve(pkgRoot, 'tsup.config.ts'), 'utf8');
 const copyAssets = readFileSync(resolve(pkgRoot, 'scripts/copy-assets.mjs'), 'utf8');
@@ -166,6 +168,29 @@ describe('package.json exports map', () => {
 
   test('exports map does not regress to ./* wildcard', () => {
     expect(pkg.exports['./*']).toBeUndefined();
+  });
+
+  test('every declaration subpath builds from the tsup entry of its name', () => {
+    // scripts/build-core-declarations.mjs finds the source of `./dist/<name>.d.ts` as
+    // `src/<name>.ts` or `src/<name>/index.ts`; the JS of that subpath comes from the tsup
+    // entry `<name>`, so the two must name the same file.
+    const mismatched = publishedEntries(pkg)
+      .filter(({ name, source }) => {
+        const key = name.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
+        const entry = new RegExp(`(?:'${key}'|"${key}"|\\b${key}):\\s*'([^']+)'`).exec(tsupConfig);
+        return entry?.[1] !== relative(pkgRoot, source);
+      })
+      .map(({ name }) => name);
+    expect(mismatched).toEqual([]);
+  });
+
+  test('one declaration graph, built outside tsup', () => {
+    // `types` is the outer condition of every JS subpath, so import and require consumers
+    // select the same `.d.ts` graph. scripts/build-core-declarations.mjs emits it: tsup's
+    // own declaration bundler needed more than Node's default heap for this package, so
+    // neither tsup build may turn it back on.
+    expect(tsupConfig).not.toMatch(/dts:\s*true/);
+    expect(pkg.scripts.build).toContain('node ../../scripts/build-core-declarations.mjs');
   });
 });
 

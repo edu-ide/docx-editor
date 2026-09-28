@@ -1,4 +1,5 @@
 import { defineConfig } from 'tsup';
+import { declarationCompilerOptions } from '../../scripts/declaration-options.mjs';
 
 export default defineConfig({
   entry: {
@@ -10,7 +11,8 @@ export default defineConfig({
     styles: 'src/styles/index.ts',
   },
   format: ['cjs', 'esm'],
-  dts: true,
+  // See scripts/declaration-options.mjs.
+  dts: { compilerOptions: declarationCompilerOptions(import.meta.url) },
   splitting: true,
   sourcemap: false,
   clean: true,
