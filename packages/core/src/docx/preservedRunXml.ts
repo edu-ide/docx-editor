@@ -18,6 +18,7 @@ import type {
   RunContent,
 } from '../types/document';
 import { parseImage } from './imageParser';
+import { WORD_NAMESPACES } from './serializer/wordNamespaces';
 import { parseVmlImageContent } from './vmlImageParser';
 import { isWatermarkShape } from './vmlWatermarkParser';
 import {
@@ -89,9 +90,10 @@ function isWatermark(element: XmlElement): boolean {
 
 /**
  * The element with a declaration for each namespace prefix it uses that neither
- * it nor the serializers' root declares (a non-Word writer may declare `a:` or
- * `pic:` on the document root), so a full repack, which writes its own root,
- * still writes valid XML. Null when such a prefix has no known namespace.
+ * it nor the serializers' root declares — Word declares `wpi:` (ink) or `cx:`
+ * (chartex) on its root, a non-Word writer may declare `a:` or `pic:` there —
+ * so a full repack, which writes its own root, still writes valid XML. Null when
+ * such a prefix has no known namespace.
  */
 function selfContained(element: XmlElement): XmlElement | null {
   const used = new Set<string>();
@@ -113,7 +115,7 @@ function selfContained(element: XmlElement): XmlElement | null {
   };
   visit(element);
 
-  const known: Record<string, string> = NAMESPACES;
+  const known: Record<string, string> = { ...WORD_NAMESPACES, ...NAMESPACES };
   const declarations: Record<string, string> = {};
   for (const prefix of used) {
     if (prefix === 'xml' || declared.has(prefix) || ROOT_PREFIXES.has(prefix)) continue;

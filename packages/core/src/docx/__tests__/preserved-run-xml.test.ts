@@ -70,6 +70,16 @@ const CHART =
   '<c:chart xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" r:id="rId9"/>' +
   '</a:graphicData></a:graphic></wp:inline></w:drawing>';
 
+/** Word ink: `wpi` is named only by Requires and declared on Word's document root. */
+const INK =
+  '<mc:AlternateContent><mc:Choice Requires="wpi"><w:drawing>' +
+  '<wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="914400" cy="457200"/>' +
+  '<wp:docPr id="5" name="Ink 5"/>' +
+  `<a:graphic xmlns:a="${A}"><a:graphicData uri="http://schemas.microsoft.com/office/word/2010/wordprocessingInk">` +
+  '<w14:contentPart bwMode="auto" r:id="rId7"/></a:graphicData></a:graphic></wp:inline></w:drawing>' +
+  '</mc:Choice><mc:Fallback><w:pict><v:shape id="Ink 5" style="width:72pt;height:36pt"/></w:pict>' +
+  '</mc:Fallback></mc:AlternateContent>';
+
 /** A shape using a prefix nobody declares: it cannot be written back self-contained. */
 const UNDECLARED =
   '<w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="914400" cy="914400"/>' +
@@ -167,6 +177,16 @@ describe('run content the editor does not model is kept as parsed', () => {
     expect(kept(textBox)).toEqual([]);
     expect(runContent(textBox).some((c) => c.type === 'shape')).toBe(true);
     expect(kept(modelOf(holder('1A000001', VML_WATERMARK)))).toEqual([]);
+  });
+
+  test("a prefix only Word's root declares is declared on the kept element", () => {
+    const [ink] = kept(modelOf(holder('1A000001', INK)));
+    expect(ink?.xml).toBe(
+      INK.replace(
+        '<mc:AlternateContent>',
+        '<mc:AlternateContent xmlns:wpi="http://schemas.microsoft.com/office/word/2010/wordprocessingInk">'
+      )
+    );
   });
 
   test('a shape whose prefix cannot be declared keeps its old reading', () => {
