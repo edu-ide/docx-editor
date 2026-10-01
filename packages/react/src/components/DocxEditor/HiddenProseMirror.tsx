@@ -289,7 +289,10 @@ const HiddenProseMirrorComponent = forwardRef<HiddenProseMirrorRef, HiddenProseM
         // dispatch transactions during EditorView construction (in their `view()`
         // callback), before the constructor returns and viewRef.current is set.
         dispatchTransaction(this: EditorView, transaction: Transaction) {
-          if (isDestroyingRef.current) return;
+          // Async plugin callbacks can outlive destroyView(), which resets the
+          // shared ref for a future mount. Check the dispatching view itself
+          // before updating state or assigning it back into viewRef.
+          if (this.isDestroyed || isDestroyingRef.current) return;
 
           // Ensure viewRef is set — may be called during construction before
           // the `new EditorView()` assignment on the next line completes.
