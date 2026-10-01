@@ -1,5 +1,28 @@
 # @eigenpal/docx-editor-vue
 
+## 1.10.1
+
+### Patch Changes
+
+- 6cc8909: Backport OSS layout corrections while retaining the existing editor and collaboration APIs: split oversized cantSplit table rows at whole-line boundaries, select East Asian font slots for mixed-script painted runs without changing document positions, and parse XML Schema boolean anchor attributes. Make word-boundary traversal linear for long space-heavy paragraphs.
+
+  Allow Vue hosts to configure the same per-peer comment ID allocator policy as React.
+
+- Updated dependencies [1340c5b]
+- Updated dependencies [603bc08]
+- Updated dependencies [aae1d3f]
+- Updated dependencies [0c03160]
+- Updated dependencies [3073de0]
+- Updated dependencies [6cc8909]
+- Updated dependencies [ccc0e48]
+- Updated dependencies [6846cda]
+- Updated dependencies [ff3ed83]
+- Updated dependencies [451fed9]
+- Updated dependencies [5a16db6]
+  - @eigenpal/docx-editor-core@1.10.1
+  - @eigenpal/docx-editor-agents@1.10.1
+  - @eigenpal/docx-editor-i18n@1.10.1
+
 ## 1.10.0
 
 ### Patch Changes

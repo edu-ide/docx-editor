@@ -1,5 +1,24 @@
 # @eigenpal/docx-editor-core
 
+## 1.10.1
+
+### Patch Changes
+
+- 1340c5b: Measure the first line of a hanging-indent list paragraph from where its text starts, after the marker's slot, so a full first line no longer runs past the right indent by the hanging amount.
+- 603bc08: End a keep-with-next group at a forced break: a heading whose next paragraph starts a new page, or that is followed by a page or column break, stays on its page instead of moving to a page of its own, and the break discards its trailing spacing. Backport of upstream ab460dc9 (#985).
+- aae1d3f: A field nested inside another field's instruction (such as `IF { STYLEREF Heading } <> "x" ...`) no longer displays its cached result as text of its own, and a nested complex field no longer breaks up the outer field. The nested fields stay in the outer field code, and saving writes them back inside the instruction. Backport of upstream 390c1772 (#986).
+- 0c03160: Keep no-break spaces (U+00A0, U+2007, U+202F) and word joiners (U+2060, U+FEFF) with their neighbours across formatting runs, and keep a format-only split inside a word from wrapping at the run boundary: text split into runs now wraps exactly like the same text in one run. Backport of upstream ae1afe03 (#976).
+- 3073de0: Start a hanging numbered paragraph's first line at an authored tab stop that lies between the number and the text indent, so the line wraps with the width it has, and start it right after the number for a `space` or `nothing` suffix. Backport of upstream bf776f2d (#979).
+- 6cc8909: Backport OSS layout corrections while retaining the existing editor and collaboration APIs: split oversized cantSplit table rows at whole-line boundaries, select East Asian font slots for mixed-script painted runs without changing document positions, and parse XML Schema boolean anchor attributes. Make word-boundary traversal linear for long space-heavy paragraphs.
+
+  Allow Vue hosts to configure the same per-peer comment ID allocator policy as React.
+
+- ccc0e48: A manual page break followed by an empty section-break paragraph no longer adds a blank page before a section that starts on a new page: the break and the empty mark stay on the page the break closes. Backport of upstream d6c75d2c (#981).
+- 6846cda: Resolve a paragraph mark's run properties above the paragraph style: the character style its `w:rStyle` names, then its direct properties. Any mark property (such as bold) no longer brings the document default font size back over the paragraph style's for empty paragraphs, empty list markers and newly typed text, and an `w:rStyle` that names a paragraph style is ignored. Backport of upstream 2eea4deb (#987).
+- ff3ed83: An empty section-break paragraph that follows content in its own section ignores its own page break before, from direct formatting or its style, and no longer opens a blank page before the next section. Saving keeps each page break before as the document had it: a style's page break is no longer written into the paragraph as direct formatting, a direct `w:val="0"` that switches a style's break off is kept, and a page break that opens a paragraph stays a page-break run instead of becoming a `w:pageBreakBefore` property. Backport of upstream 9afb832b (#983).
+- 451fed9: Start an odd-page or even-page section on a page number of that parity: when the page after the break has the other parity, layout now inserts one blank page (`Page.parityBlank`), sized like the section it precedes and painted without header, footer, watermark or page border. The blank page takes a page number and counts toward the page total. Backport of upstream 6794f4d3 (#978).
+- 5a16db6: Paint straight lines, connectors and outlined horizontal rules drawn as `wps:wsp` shapes: each now draws its stroke instead of an empty picture box, and a vertical or horizontal line takes its stroke width on the axis it has no size on instead of 100px, so it no longer pushes its line of text down. The line geometry is on `Image.vectorShape` and the image node's `vectorShape` attribute; saving writes these drawings as before. Backport of upstream d04902a9 (#972).
+
 ## 1.10.0
 
 ### Minor Changes
